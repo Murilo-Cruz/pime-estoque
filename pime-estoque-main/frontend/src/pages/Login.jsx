@@ -1,5 +1,7 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
+  AlertCircle,
   ArrowRight,
   CheckCircle2,
   Eye,
@@ -10,6 +12,7 @@ import {
   ShieldCheck,
   LoaderCircle,
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import './Login.css';
 
 export default function Login() {
@@ -17,24 +20,30 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
-  const [message, setMessage] = useState('');
+  const { entrar } = useAuth();
+  const [feedback, setFeedback] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  function handleSubmit(event) {
-    event.preventDefault();
-    setMessage('');
-    setLoading(true);
+async function handleSubmit(event) {
+  event.preventDefault();
+  setFeedback(null);
+  setLoading(true);
 
-    // A autenticação ainda não está conectada à API. Este retorno é apenas visual.
-    window.setTimeout(() => {
-      setLoading(false);
-      setMessage('A tela está pronta, mas o login ainda precisa ser conectado à API.');
-    }, 600);
+  try {
+    await entrar(email, password, rememberMe);
+    // o redirecionamento ao sistema é feito pela RotaPublica
+  } catch (erro) {
+    setFeedback({
+      type: 'error',
+      text: erro.status ? erro.message : 'Não foi possível conectar ao servidor.',
+    });
+    setLoading(false);
   }
+}
 
-  function showDemoMessage(text) {
-    setMessage(text);
-  }
+function showDemoMessage(text) {
+  setFeedback({ type: 'info', text });
+}
 
   return (
     <main className="login-page">
@@ -129,9 +138,13 @@ export default function Login() {
             Criar conta
           </a>
 
-          {message && (
-            <div className="login-feedback" role="status">
-              <CheckCircle2 size={17} /> <span>{message}</span>
+          {feedback && (
+            <div
+              className={`login-feedback ${feedback.type === 'error' ? 'login-feedback-error' : ''}`}
+              role={feedback.type === 'error' ? 'alert' : 'status'}
+            >   
+              {feedback.type === 'error' ? <AlertCircle size={17} /> : <CheckCircle2 size={17} />}
+              <span>{feedback.text}</span>
             </div>
           )}
         </form>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-
+import { Link } from 'react-router-dom';
 import {
   ArrowRight,
   CheckCircle2,
@@ -12,10 +12,13 @@ import {
   ShieldCheck,
   LoaderCircle,
   ArrowLeft,
+  UserRound,
 } from 'lucide-react';
+import { api } from '../services/api';
 import './Login.css';
 
 export default function Register() {
+  const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -24,12 +27,12 @@ export default function Register() {
   const [feedback, setFeedback] = useState(null); // { type: 'success' | 'error', text }
   const [loading, setLoading] = useState(false);
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
     setFeedback(null);
 
-    if (password.length < 8) {
-      setFeedback({ type: 'error', text: 'A senha deve ter pelo menos 8 caracteres.' });
+    if (password.length < 8 || password.length > 72) {
+      setFeedback({ type: 'error', text: 'A senha deve ter de 8 a 72 caracteres.' });
       return;
     }
 
@@ -40,14 +43,20 @@ export default function Register() {
 
     setLoading(true);
 
-    // O cadastro ainda não está conectado à API. Este retorno é apenas visual.
-    window.setTimeout(() => {
-      setLoading(false);
-      setFeedback({
-        type: 'success',
-        text: 'A tela está pronta, mas o cadastro ainda precisa ser conectado à API.',
+    try {
+      await api('/auth/register', {
+        metodo: 'POST',
+        corpo: { nome, email, senha: password },
       });
-    }, 600);
+      setFeedback({ type: 'success', text: 'Conta criada! Você já pode entrar.' });
+    } catch (erro) {
+      setFeedback({
+        type: 'error',
+        text: erro.status ? erro.message : 'Não foi possível conectar ao servidor.',
+      });
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -71,6 +80,23 @@ export default function Register() {
 
         <form className="login-form" onSubmit={handleSubmit}>
           <div className="login-field">
+            <label htmlFor="register-nome">Nome</label>
+            <div className="login-input-wrap">
+              <UserRound className="login-input-icon" size={18} />
+              <input
+                id="register-nome"
+                type="text"
+                autoComplete="name"
+                placeholder="Seu nome"
+                value={nome}
+                onChange={(event) => setNome(event.target.value)}
+                maxLength={100}
+                required
+              />
+            </div>
+          </div>
+
+          <div className="login-field">
             <label htmlFor="register-email">E-mail</label>
             <div className="login-input-wrap">
               <Mail className="login-input-icon" size={18} />
@@ -81,6 +107,7 @@ export default function Register() {
                 placeholder="voce@empresa.com.br"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
+                maxLength={150}
                 required
               />
             </div>
@@ -150,12 +177,15 @@ export default function Register() {
             </div>
           )}
 
-            <a href="/login" className="login-register-button">
-                 <ArrowLeft size={17} /> Voltar para o login
-                 </a>
+          <Link to="/login" className="login-register-button">
+            <ArrowLeft size={17} /> Voltar para o login
+          </Link>
         </form>
 
-        <footer className="login-footer"><ShieldCheck size={15} /><span>Seus dados merecem segurança.</span></footer>
+        <footer className="login-footer">
+          <ShieldCheck size={15} />
+          <span>Seus dados merecem segurança.</span>
+        </footer>
       </section>
       <p className="login-copyright">© {new Date().getFullYear()} MG Manager · Sistema de gestão de estoque</p>
     </main>
