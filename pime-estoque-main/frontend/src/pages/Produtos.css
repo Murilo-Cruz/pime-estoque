@@ -1,0 +1,82 @@
+/* Escopado em .produtos-page / .pr-* para não vazar para outras telas.
+   Reaproveita classes de Clientes.css (KPIs, filtros, tabela, drawer, botões). */
+.produtos-page .mono { font-family: ui-monospace, 'JetBrains Mono', monospace; }
+.produtos-page .verde { color: var(--cor-verde); }
+.produtos-page .ciano { color: var(--cor-ciano); }
+.produtos-page .roxo { color: var(--cor-roxo); }
+.produtos-page .erro { color: var(--cor-erro); }
+.produtos-page .stat-card.cyan .stat-value strong { color: #f2f5fb; }
+.produtos-page table input[type='checkbox'], .check-ativos input { width: 15px; height: 15px; accent-color: var(--cor-verde); cursor: pointer; }
+
+.check-ativos { display: inline-flex; align-items: center; gap: 7px; color: var(--cor-texto); font-size: 12px; cursor: pointer; user-select: none; }
+
+/* ---------- Tabela ---------- */
+.produtos-page .product-icon { color: var(--cor-ciano); flex-shrink: 0; }
+.produtos-page .product-cell strong.codigo { display: block; }
+.produtos-page .product-cell small.mono { font-size: 10px; }
+.produtos-page td.mono { font-size: 11px; }
+.produtos-page td.forte { color: #f2f5fb; font-weight: 600; }
+.margem { padding: 4px 8px; color: var(--cor-verde); border-radius: 5px; background: rgba(78,222,163,.1); font-size: 10px; font-weight: 700; }
+.local { display: inline-flex; align-items: center; gap: 5px; color: var(--cor-muted); font-size: 11px; }
+.col-saldo { min-width: 190px; }
+.saldo-linha { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 6px; font-size: 10px; color: var(--cor-muted); }
+.saldo-linha b { font-weight: 700; }
+.saldo-linha b.normal, .saldo-linha b.excesso { color: var(--cor-verde); }
+.saldo-linha b.baixo, .saldo-linha b.ruptura { color: var(--cor-erro); }
+
+.barra { width: 100%; height: 6px; overflow: hidden; border-radius: 999px; background: var(--cor-base); }
+.barra > div { height: 100%; border-radius: 999px; }
+.barra > .normal, .barra > .excesso, .barra > .verde { background: var(--cor-verde); }
+.barra > .baixo, .barra > .ruptura { background: var(--cor-erro); }
+.barra > .ciano { background: var(--cor-ciano); }
+.barra > .roxo { background: var(--cor-roxo); }
+
+.pill.normal { color: var(--cor-verde); background: rgba(78,222,163,.1); }
+.pill.excesso { color: var(--cor-ciano); background: rgba(76,215,246,.1); }
+.pill.baixo { color: var(--cor-erro); background: rgba(255,180,171,.12); }
+.pill.ruptura { color: #690005; background: var(--cor-erro); font-weight: 800; text-transform: uppercase; letter-spacing: .5px; }
+
+/* ---------- Barra de seleção em lote ---------- */
+.bulk-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 16px; padding: 10px 14px; border-radius: 10px; background: #1c2028; font-size: 12px; }
+.bulk-bar > span { display: inline-flex; align-items: center; gap: 8px; color: var(--cor-ciano); }
+.bulk-bar strong { color: var(--cor-texto); }
+.bulk-bar > div { display: flex; gap: 8px; }
+
+/* ---------- Cards inferiores ---------- */
+.insights-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 24px; }
+.insight-card { display: flex; flex-direction: column; gap: 14px; padding: 18px; border: 1px solid rgba(255,255,255,.075); border-radius: 12px; background: rgba(24,28,36,.9); }
+.insight-card > header { display: flex; align-items: center; justify-content: space-between; color: var(--cor-muted); font-size: 10px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; }
+.insight-card > header svg { color: var(--cor-ciano); }
+.insight-card p, .insight-card small { color: var(--cor-muted); font-size: 11px; line-height: 1.5; }
+.cd-linha { display: flex; flex-direction: column; gap: 6px; }
+.cd-linha > div:first-child { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--cor-texto); }
+.cd-linha > div:first-child span { color: var(--cor-muted); }
+.scan-campo { position: relative; }
+.scan-campo svg { position: absolute; top: 50%; left: 11px; transform: translateY(-50%); color: var(--cor-verde); }
+.scan-campo input { width: 100%; padding: 9px 12px 9px 34px; color: var(--cor-texto); border: 1px solid var(--cor-borda); border-radius: 8px; background: var(--cor-campo); font-size: 12px; outline: none; }
+.scan-campo input:focus { border-color: var(--cor-verde); }
+.insight-card > .btn-neutro { justify-content: center; }
+
+/* ---------- Drawer (complementos) ---------- */
+.drawer-produto { width: min(720px, 100%); }
+.obrigatorio { color: var(--cor-erro); }
+.campo input:disabled { opacity: .6; cursor: not-allowed; }
+
+/* ---------- Modal de exclusão ---------- */
+.pr-modal-fundo { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 16px; background: rgba(0,0,0,.6); backdrop-filter: blur(4px); }
+.pr-modal { display: flex; flex-direction: column; gap: 16px; width: 100%; max-width: 520px; padding: 24px; border-radius: 14px; background: var(--cor-painel); box-shadow: 0 25px 60px rgba(0,0,0,.6); }
+.pr-modal-titulo { display: flex; align-items: center; gap: 10px; color: var(--cor-erro); }
+.pr-modal-titulo h3 { color: #f2f5fb; font-size: 18px; }
+.pr-modal p { color: var(--cor-muted); font-size: 13px; line-height: 1.6; }
+.pr-modal p strong { color: var(--cor-texto); }
+.pr-modal-caixa { display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 10px; background: #0f131c; font-size: 11px; }
+.pr-modal-caixa > div { display: flex; justify-content: space-between; gap: 10px; color: var(--cor-muted); }
+.pr-modal-caixa b { font-family: ui-monospace, monospace; }
+.pr-modal-caixa b.verde { color: var(--cor-verde); }
+.pr-modal-caixa b.erro { color: var(--cor-erro); }
+.pr-modal-caixa small { margin-top: 4px; color: var(--cor-muted); line-height: 1.5; }
+.pr-modal-acoes { display: flex; justify-content: flex-end; gap: 10px; }
+.btn-erro { padding: 9px 14px; color: #690005; border: 0; border-radius: 7px; background: var(--cor-erro); font-size: 12px; font-weight: 700; cursor: pointer; }
+.btn-erro:hover { background: #ffdad6; }
+
+@media (max-width: 1050px) { .insights-grid { grid-template-columns: 1fr; } }

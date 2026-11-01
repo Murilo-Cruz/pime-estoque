@@ -1,7 +1,9 @@
+import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
   Package,
   Users,
+  UserRound,
   PackagePlus,
   ShoppingCart,
   Wallet,
@@ -13,9 +15,10 @@ import Logo from './Logo';
 import { useAuth } from '../context/AuthContext';
 
 const itens = [
-  { nome: 'Dashboard', icone: LayoutDashboard },
-  { nome: 'Produtos', icone: Package },
-  { nome: 'Emitentes', icone: Users },
+  { nome: 'Dashboard', icone: LayoutDashboard, rota: '/' },
+  { nome: 'Produtos', icone: Package, rota: '/produtos' },
+  { nome: 'Clientes', icone: UserRound, rota: '/clientes' },
+  { nome: 'Emitentes', icone: Users, rota: '/emitentes' },
   { nome: 'Entradas', icone: PackagePlus },
   { nome: 'Pedidos', icone: ShoppingCart },
   { nome: 'Financeiro', icone: Wallet },
@@ -32,15 +35,21 @@ export default function Sidebar() {
 
       <nav>
         <ul>
-          {itens.map((item) => {
-            const Icone = item.icone;
-            return (
-              <li key={item.nome}>
-                <Icone size={22} />
-                <span className="sidebar-label">{item.nome}</span>
-              </li>
-            );
-          })}
+          {itens.map(({ nome, icone: Icone, rota }) => (
+            <li key={nome}>
+              {rota ? (
+                <NavLink to={rota} end={rota === '/'} className="sidebar-link">
+                  <Icone size={22} />
+                  <span className="sidebar-label">{nome}</span>
+                </NavLink>
+              ) : (
+                <span className="sidebar-link">
+                  <Icone size={22} />
+                  <span className="sidebar-label">{nome}</span>
+                </span>
+              )}
+            </li>
+          ))}
         </ul>
       </nav>
 
