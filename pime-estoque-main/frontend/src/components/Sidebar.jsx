@@ -19,9 +19,9 @@ const itens = [
   { nome: 'Produtos', icone: Package, rota: '/produtos' },
   { nome: 'Clientes', icone: UserRound, rota: '/clientes' },
   { nome: 'Emitentes', icone: Users, rota: '/emitentes' },
-  { nome: 'Entradas', icone: PackagePlus },
-  { nome: 'Pedidos', icone: ShoppingCart },
-  { nome: 'Financeiro', icone: Wallet },
+  { nome: 'Entradas', icone: PackagePlus, rota: '/entradas' },
+  { nome: 'Pedidos', icone: ShoppingCart, rota: '/pedidos' },
+  { nome: 'Financeiro', icone: Wallet, rota: '/financeiro' },
 ];
 
 export default function Sidebar() {

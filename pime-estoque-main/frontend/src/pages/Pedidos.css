@@ -1,0 +1,110 @@
+/* Escopado em .pedidos-page / .pd-*. Reaproveita Clientes.css (KPIs, filtros, tabela, drawer, botões). */
+.pedidos-page .mono { font-family: ui-monospace, 'JetBrains Mono', monospace; }
+.pedidos-page .verde { color: var(--cor-verde); }
+.pedidos-page .ciano { color: var(--cor-ciano); }
+.pedidos-page .roxo { color: var(--cor-roxo); }
+.pedidos-page .erro { color: var(--cor-erro); }
+.pedidos-page .mudo { color: var(--cor-muted); }
+.pedidos-page table input[type='checkbox'] { width: 15px; height: 15px; accent-color: var(--cor-verde); cursor: pointer; }
+.pd-dir { text-align: right; align-items: flex-end; }
+.pd-centro { text-align: center; }
+
+/* ---------- Topo ---------- */
+.pd-topo { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.pd-topo .eyebrow { margin: 0; }
+.pd-pulso { display: flex; align-items: center; gap: 14px; }
+.pd-pulso small { display: inline-flex; align-items: center; gap: 5px; color: var(--cor-muted); font-size: 11px; }
+.pd-pulso small svg { color: var(--cor-ciano); }
+.pd-chip-ativo { display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px; color: var(--cor-texto); border-radius: 999px; background: #1c2028; font-size: 11px; }
+.pd-chip-ativo i { width: 8px; height: 8px; border-radius: 50%; background: var(--cor-verde); animation: pd-ping 1.4s ease-out infinite; }
+@keyframes pd-ping { 0% { box-shadow: 0 0 0 0 rgba(78,222,163,.6); } 100% { box-shadow: 0 0 0 8px rgba(78,222,163,0); } }
+.pd-pulsa { animation: pd-pisca 0.8s ease-in-out infinite; }
+@keyframes pd-pisca { 50% { opacity: .5; } }
+
+/* ---------- KPIs ---------- */
+.stat-icon.purple { color: var(--cor-roxo); background: rgba(192,193,255,.1); }
+.pd-kpi-valor { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin: 12px 0 4px; }
+.pd-kpi-valor strong { color: #f2f5fb; font-size: 32px; font-weight: 700; letter-spacing: -.5px; }
+.pd-kpi-valor strong.menor { font-size: 26px; }
+.stat-card.red .pd-kpi-valor strong { color: var(--cor-erro); }
+.pd-kpi-valor small { color: var(--cor-muted); font-size: 11px; }
+.pd-kpi-linha { margin: 0 0 12px; color: var(--cor-muted); font-size: 11px; }
+.stat-card.green .pd-kpi-linha { color: var(--cor-verde); }
+.stat-card.cyan .pd-kpi-linha { color: var(--cor-ciano); }
+.stat-card.purple .pd-kpi-linha { color: var(--cor-roxo); }
+.pd-kpi-rodape { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; }
+.pd-kpi-rodape small { color: var(--cor-muted); font-size: 10px; }
+.stat-card.red .pd-kpi-rodape small { color: var(--cor-erro); }
+.pd-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 7px; border-radius: 5px; font-size: 10px; font-weight: 600; }
+.pd-badge.green { color: var(--cor-verde); background: rgba(78,222,163,.1); }
+.pd-badge.cyan { color: var(--cor-ciano); background: rgba(76,215,246,.1); }
+.pd-badge.red { color: var(--cor-erro); background: rgba(255,180,171,.12); }
+.pd-badge.purple { color: var(--cor-roxo); background: rgba(192,193,255,.1); }
+
+/* ---------- Resumo + lote ---------- */
+.pd-resumo { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 12px; color: var(--cor-muted); font-size: 11px; }
+.pd-resumo b { color: var(--cor-texto); }
+.pd-resumo em { padding: 2px 8px; color: var(--cor-texto); border-radius: 5px; background: #1c2028; font-style: normal; }
+.pd-bulk { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pd-bulk > span { display: inline-flex; align-items: center; gap: 6px; margin-right: 4px; }
+.pd-btn-verde { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; color: var(--cor-verde); border: 0; border-radius: 6px; background: rgba(78,222,163,.15); font-size: 11px; cursor: pointer; }
+.pd-btn-verde:hover { background: rgba(78,222,163,.25); }
+
+/* ---------- Tabela ---------- */
+.pd-id { display: inline-flex; align-items: center; gap: 6px; }
+.pd-canal { display: inline-flex; align-items: center; gap: 5px; }
+.pd-canal svg { color: var(--cor-ciano); }
+.pd-credito { margin-left: 6px; padding: 2px 6px; border-radius: 5px; font-size: 9px; font-style: normal; font-weight: 700; text-transform: uppercase; }
+.pd-credito.verde { color: var(--cor-verde); background: rgba(78,222,163,.1); }
+.pd-credito.ciano { color: var(--cor-ciano); background: rgba(76,215,246,.1); }
+.pd-credito.roxo { color: var(--cor-roxo); background: rgba(192,193,255,.1); }
+.pill.pd-pill.verde { color: var(--cor-verde); background: rgba(78,222,163,.12); }
+.pill.pd-pill.ciano { color: var(--cor-ciano); background: rgba(76,215,246,.12); }
+.pill.pd-pill.roxo { color: var(--cor-roxo); background: rgba(192,193,255,.12); }
+.pill.pd-pill.erro { color: var(--cor-erro); background: rgba(255,180,171,.12); }
+.pill.pd-pill.neutro { color: var(--cor-texto); background: #31353e; }
+.pill.pd-pill.neutro > span { background: var(--cor-verde); }
+.pill.pd-pill.mudo { color: var(--cor-muted); background: #262a33; }
+.pd-pisca { animation: pd-pisca .9s ease-in-out infinite; }
+.pd-estoque { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 5px; font-size: 10px; white-space: nowrap; }
+.pd-estoque.verde { color: var(--cor-verde); background: rgba(78,222,163,.1); }
+.pd-estoque.ciano { color: var(--cor-ciano); background: rgba(76,215,246,.1); }
+.pd-estoque.erro { color: var(--cor-erro); background: rgba(255,180,171,.1); }
+.pd-estoque.mudo { color: var(--cor-muted); background: #1c2028; }
+.table-footer select { margin: 0 6px; padding: 2px 6px; color: var(--cor-texto); border: 0; border-radius: 4px; background: #1c2028; }
+.pd-pager { display: flex; align-items: center; gap: 6px; }
+.pd-pager button { display: grid; place-items: center; min-width: 26px; height: 26px; padding: 0 6px; color: var(--cor-texto); border: 0; border-radius: 5px; background: #1c2028; font-size: 11px; cursor: pointer; }
+.pd-pager button:disabled { opacity: .35; cursor: default; }
+.pd-pager b { display: grid; place-items: center; min-width: 26px; height: 26px; color: var(--cor-verde); border-radius: 5px; background: rgba(78,222,163,.12); font-size: 11px; }
+.pd-pager span { color: var(--cor-muted); }
+
+/* ---------- Drawer ---------- */
+.pd-drawer { width: min(900px, 100%); }
+.pd-bloco { display: flex; flex-direction: column; gap: 14px; padding: 16px; border-radius: 12px; background: #1c2028; }
+.pd-bloco-topo { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding-bottom: 8px; border-bottom: 1px solid #262a33; font-size: 10px; color: var(--cor-muted); }
+.pd-bloco-topo h3 { display: inline-flex; align-items: center; gap: 8px; color: var(--cor-texto); font-size: 11px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; }
+.pd-grid-12 { grid-template-columns: repeat(12, minmax(0, 1fr)) !important; }
+.pd-c6 { grid-column: span 6; } .pd-c3 { grid-column: span 3; }
+.pd-novo { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; padding: 12px; border-radius: 10px; background: #181c24; }
+.pd-flex { flex: 1; min-width: 240px; } .pd-w80 { width: 84px; } .pd-w120 { width: 124px; }
+.pd-itens th { white-space: nowrap; }
+.pd-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 5px; font-size: 10px; }
+.pd-chip.verde { color: var(--cor-verde); background: rgba(78,222,163,.1); }
+.pd-chip.erro { color: var(--cor-erro); background: rgba(255,180,171,.12); }
+.pd-lixo { color: var(--cor-muted); border: 0; background: none; cursor: pointer; }
+.pd-lixo:hover { color: var(--cor-erro); }
+.pd-duplo { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.pd-fechamento { display: flex; flex-direction: column; gap: 12px; padding: 18px; border-radius: 12px; background: #0a0e16; }
+.pd-totais { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.pd-totais > div { display: flex; flex-direction: column; gap: 4px; }
+.pd-totais small { color: var(--cor-muted); font-size: 10px; }
+.pd-totais strong { color: #f2f5fb; font-size: 15px; font-weight: 600; }
+.pd-totais strong.verde { color: var(--cor-verde); } .pd-totais strong.ciano { color: var(--cor-ciano); }
+.pd-totais strong.grande { font-size: 20px; font-weight: 700; }
+
+@media (max-width: 1050px) {
+  .pd-duplo { grid-template-columns: 1fr; }
+  .pd-totais { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pd-grid-12 { grid-template-columns: 1fr !important; }
+  .pd-c6, .pd-c3 { grid-column: auto; }
+}
