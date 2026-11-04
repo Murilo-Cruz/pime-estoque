@@ -9,5 +9,6 @@ export const pool = mysql.createPool({
   database: process.env.DB_NAME,
   waitForConnections: true,
   connectionLimit: 10,
-  decimalNumbers: true,
+  decimalNumbers: true, // DECIMAL chega como número
+  dateStrings: true, // DATETIME chega como "AAAA-MM-DD HH:MM:SS", sem conversão de fuso
 });
