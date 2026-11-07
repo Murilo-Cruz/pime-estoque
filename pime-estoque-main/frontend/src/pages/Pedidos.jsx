@@ -1,142 +1,164 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ArrowLeftRight, ArrowUp, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, CircleAlert, CircleX,
-  CheckCheck, CirclePlus, CloudCog, FilePenLine, Forklift, Gauge, Boxes, ChartLine, ListChecks, Printer,
-  ReceiptText, RefreshCw, RotateCcw, Search, Share2, ShieldCheck, ShoppingCart, TrendingUp, TriangleAlert,
+  CheckCheck, CircleX, CirclePlus, FilePenLine, Gauge, Hourglass, ChartLine, RotateCcw, Search, ShoppingCart,
 } from 'lucide-react';
 import PedidoDrawer from '../components/PedidoDrawer';
 import Toast from '../components/Toast';
-import {
-  brl, canais, filtroCanais, filtroStatusComercial, filtroStatusEstoque, kpisPedido, pedidosIniciais,
-  statusComercial, statusEstoque,
-} from '../data/pedidos';
+import { useApi } from '../hooks/useApi';
+import { useToast } from '../hooks/useToast';
+import { brl, dataBR, horaBR, inteiro } from '../utils/formatos';
 import './Clientes.css'; // reaproveita KPIs, tabela, filtros e drawer (classes globais)
 import './Pedidos.css';
 
-const filtrosIniciais = { busca: '', canal: '', comercial: '', estoque: '' };
-const iconesKpi = [ShoppingCart, Forklift, Boxes, ChartLine];
-const iconesBadge = [TrendingUp, Gauge, TriangleAlert, ArrowUp];
-const corCredito = { AAA: 'verde', AA: 'ciano', 'B+': 'roxo' };
-const corId = { FATURADO: 'verde', SEPARACAO: 'ciano', RUPTURA: 'erro', APROVADO: '', PENDENTE: 'roxo', CANCELADO: 'mudo' };
+const filtrosIniciais = { busca: '', status: '', de: '', ate: '' };
+
+const statusPedido = {
+  EM_PREPARACAO: { rotulo: 'Em preparação', cor: 'ciano', pulso: true },
+  FINALIZADO: { rotulo: 'Finalizado', cor: 'verde' },
+  CANCELADO: { rotulo: 'Cancelado', cor: 'mudo' },
+};
+const corId = { EM_PREPARACAO: 'ciano', FINALIZADO: 'verde', CANCELADO: 'mudo' };
 
 export default function Pedidos() {
-  const [pedidos, setPedidos] = useState(pedidosIniciais);
+  const chamar = useApi();
+  const [pedidos, setPedidos] = useState([]);
+  const [clientes, setClientes] = useState([]);
+  const [produtos, setProdutos] = useState([]);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState('');
   const [filtros, setFiltros] = useState(filtrosIniciais);
-  const [selecionados, setSelecionados] = useState([]);
   const [drawer, setDrawer] = useState({ aberto: false, pedido: null });
-  const [sincronizando, setSincronizando] = useState(false);
-  const [contador, setContador] = useState(9105);
-  const [toast, setToast] = useState(null);
-  const timer = useRef(null);
+  const [toast, avisar] = useToast();
 
-  useEffect(() => () => clearTimeout(timer.current), []);
+  const carregar = useCallback(async () => {
+    setErro('');
+    try {
+      const [ped, cli, prod] = await Promise.all([
+        chamar('/pedidos'),
+        chamar('/emitentes?tipo=CLIENTE'),
+        chamar('/produtos?status=ATIVO'),
+      ]);
+      setPedidos(ped);
+      setClientes(cli);
+      setProdutos(prod);
+    } catch (e) {
+      setErro(e.message);
+    } finally {
+      setCarregando(false);
+    }
+  }, [chamar]);
 
-  const avisar = (titulo, mensagem = '') => {
-    setToast({ titulo, mensagem });
-    clearTimeout(timer.current);
-    timer.current = setTimeout(() => setToast(null), 3800);
-  };
+  useEffect(() => { carregar(); }, [carregar]);
 
   const filtrados = useMemo(() => {
     const t = filtros.busca.trim().toLowerCase();
     return pedidos.filter((p) => {
-      const texto = `${p.id} ${p.cliente} ${p.cnpj}`.toLowerCase();
+      const dia = p.dat_pedido.slice(0, 10);
       return (
-        (!t || texto.includes(t)) &&
-        (!filtros.canal || p.canal === filtros.canal) &&
-        (!filtros.comercial || p.statusCom === filtros.comercial) &&
-        (!filtros.estoque || p.statusEst === filtros.estoque)
+        (!t || `${p.id_pedido_venda} ${p.nom_cliente}`.toLowerCase().includes(t)) &&
+        (!filtros.status || p.idc_status === filtros.status) &&
+        (!filtros.de || dia >= filtros.de) &&
+        (!filtros.ate || dia <= filtros.ate)
       );
     });
   }, [pedidos, filtros]);
 
-  const mudar = (campo) => (e) => setFiltros((f) => ({ ...f, [campo]: e.target.value }));
-  const todos = filtrados.length > 0 && filtrados.every((p) => selecionados.includes(p.id));
-  const alternar = (id) => setSelecionados((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
-  const alternarTodos = () => setSelecionados(todos ? [] : filtrados.map((p) => p.id));
+  const kpis = useMemo(() => {
+    const em = pedidos.filter((p) => p.idc_status === 'EM_PREPARACAO');
+    const fin = pedidos.filter((p) => p.idc_status === 'FINALIZADO');
+    const receita = fin.reduce((s, p) => s + p.vlr_total, 0);
+    const lucro = fin.reduce((s, p) => s + p.vlr_lucro, 0);
+    return [
+      { titulo: 'Pedidos em preparação', valor: inteiro(em.length), linha: `${brl(em.reduce((s, p) => s + p.vlr_total, 0))} a faturar`, badge: 'Aguardando baixa', nota: 'Estoque ainda não baixado', cor: 'cyan', icone: Hourglass },
+      { titulo: 'Pedidos finalizados', valor: inteiro(fin.length), linha: `${brl(receita)} faturados`, badge: 'Estoque baixado', nota: `${pedidos.filter((p) => p.idc_status === 'CANCELADO').length} cancelado(s)`, cor: 'green', icone: ShoppingCart },
+      { titulo: 'Lucro bruto (finalizados)', valor: brl(lucro), linha: 'Receita − custo médio na venda', badge: receita > 0 ? `${((lucro / receita) * 100).toFixed(1).replace('.', ',')}% de margem` : 'Sem vendas', nota: '', cor: 'green', icone: ChartLine },
+      { titulo: 'Ticket médio', valor: brl(fin.length ? receita / fin.length : 0), linha: 'Média por pedido finalizado', badge: `${pedidos.length} pedido(s) no total`, nota: '', cor: 'purple', icone: Gauge },
+    ];
+  }, [pedidos]);
 
-  const abrir = (pedido = null) => setDrawer({ aberto: true, pedido });
+  const mudar = (campo) => (e) => setFiltros((f) => ({ ...f, [campo]: e.target.value }));
+
+  async function abrir(p = null) {
+    if (!p) return setDrawer({ aberto: true, pedido: null });
+    try {
+      // a lista não traz os itens; busca o pedido completo
+      setDrawer({ aberto: true, pedido: await chamar(`/pedidos/${p.id_pedido_venda}`) });
+    } catch (e) {
+      avisar('Não foi possível abrir o pedido', e.message, true);
+    }
+  }
   const fechar = () => setDrawer((d) => ({ ...d, aberto: false }));
 
-  const agora = () => {
-    const d = new Date();
-    return `${d.toLocaleDateString('pt-BR')} ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
-  };
-
-  function gravar(dados, statusCom, statusEst, estoqueTexto) {
-    if (drawer.pedido) {
-      setPedidos((l) => l.map((p) => (p.id === drawer.pedido.id
-        ? { ...p, skus: dados.skus, volumes: `${dados.qtd} un`, valor: dados.valor, statusCom, statusEst, estoqueTexto }
-        : p)));
-      return drawer.pedido.id;
+  async function salvar(corpo) {
+    try {
+      const editando = drawer.pedido;
+      const salvo = await chamar(editando ? `/pedidos/${editando.id_pedido_venda}` : '/pedidos', {
+        metodo: editando ? 'PUT' : 'POST',
+        corpo,
+      });
+      fechar();
+      await carregar();
+      avisar('Pedido salvo', `Pedido #${salvo.id_pedido_venda} gravado como "em preparação". O estoque só é baixado ao finalizar.`);
+    } catch (e) {
+      avisar('Não foi possível salvar o pedido', e.message, true);
     }
-    const id = `PV-${contador}`;
-    setPedidos((l) => [{
-      id, canal: dados.canal, cliente: dados.cliente, cnpj: dados.cnpj, credito: dados.credito,
-      emissao: agora(), previsao: 'Prev: a definir', skus: dados.skus, volumes: `${dados.qtd} un`,
-      embalagem: 'Aguardando separação', valor: dados.valor, pagamento: 'Boleto Faturado 30/60 Dias',
-      statusCom, statusEst, estoqueTexto,
-    }, ...l]);
-    setContador((c) => c + 1);
-    return id;
   }
 
-  function confirmarPedido(dados) {
-    const id = gravar(dados, 'APROVADO', 'RESERVADO', 'Reserva Ativa - CD Barueri');
-    fechar();
-    avisar('Estoque baixado com sucesso', `Pedido #${id} confirmado, saldo reservado e enviado para picking.`);
+  async function finalizar(p) {
+    if (!window.confirm(`Finalizar o pedido #${p.id_pedido_venda}? O estoque será baixado e o custo congelado.`)) return;
+    try {
+      await chamar(`/pedidos/${p.id_pedido_venda}/finalizar`, { metodo: 'POST' });
+      fechar();
+      await carregar();
+      avisar('Pedido finalizado', `Pedido #${p.id_pedido_venda} faturado e estoque baixado.`);
+    } catch (e) {
+      avisar('Não foi possível finalizar', e.message, true);
+    }
   }
 
-  function salvarRascunho(dados) {
-    const id = gravar(dados, 'PENDENTE', 'PROVISORIA', 'Reserva Provisória (24h)');
-    fechar();
-    avisar('Orçamento salvo', `Pedido #${id} gravado como rascunho sem bloquear estoque físico.`);
+  async function cancelar(p) {
+    if (!window.confirm(`Cancelar o pedido #${p.id_pedido_venda}?`)) return;
+    try {
+      await chamar(`/pedidos/${p.id_pedido_venda}/cancelar`, { metodo: 'POST' });
+      fechar();
+      await carregar();
+      avisar('Pedido cancelado', `Pedido #${p.id_pedido_venda} cancelado.`);
+    } catch (e) {
+      avisar('Não foi possível cancelar', e.message, true);
+    }
   }
-
-  function cancelar(p) {
-    setPedidos((l) => l.map((x) => (x.id === p.id ? { ...x, statusCom: 'CANCELADO', statusEst: 'LIBERADO', estoqueTexto: 'Reserva liberada ao saldo', erro: false } : x)));
-    avisar('Alocação cancelada', `Reserva física de #${p.id} devolvida ao saldo disponível.`);
-  }
-
-  function excluirDoDrawer(p) {
-    if (!window.confirm('Deseja realmente cancelar este pedido e liberar a reserva nos CDs?')) return;
-    cancelar(p);
-    fechar();
-  }
-
-
 
   return (
     <div className="dashboard pedidos-page">
       <div className="pd-topo">
-        <span className="eyebrow">
-          COMERCIAL &amp; EXPEDIÇÃO 
-        </span>
-       
+        <span className="eyebrow">COMERCIAL &amp; EXPEDIÇÃO</span>
       </div>
 
       <div className="dashboard-heading">
         <div>
           <h1>Pedidos de Venda &amp; Baixa de Estoque</h1>
           <p>
-            Gerenciamento centralizado de pedidos B2B e canais integrados, reserva física automática de SKUs, checagem de
-            saldo multi-CD e emissão automatizada de notas fiscais.
+            Pedidos nascem "em preparação". Ao finalizar, o sistema confere o saldo, dá baixa no estoque e
+            congela o custo médio de cada item para o cálculo de lucro.
           </p>
         </div>
         <div className="page-actions">
-          
-        
-         
           <button type="button" className="primary-button" onClick={() => abrir()}>
             <CirclePlus size={15} /> Novo Pedido de Venda
           </button>
         </div>
       </div>
 
+      {erro && (
+        <div className="aviso-erro">
+          <span>Não foi possível carregar os pedidos: {erro}</span>
+          <button type="button" onClick={carregar}>Tentar novamente</button>
+        </div>
+      )}
+
       <section className="stats-grid" aria-label="Indicadores de vendas">
-        {kpisPedido.map((k, idx) => {
-          const Icone = iconesKpi[idx];
-          const IconeBadge = iconesBadge[idx];
+        {kpis.map((k) => {
+          const Icone = k.icone;
           return (
             <article className={`stat-card ${k.cor}`} key={k.titulo}>
               <div className="stat-card-top">
@@ -145,11 +167,10 @@ export default function Pedidos() {
               </div>
               <div className="pd-kpi-valor">
                 <strong className={k.valor.length > 6 ? 'menor' : ''}>{k.valor}</strong>
-                {k.unidade && <small>{k.unidade}</small>}
               </div>
               <p className="pd-kpi-linha">{k.linha}</p>
               <div className="pd-kpi-rodape">
-                <span className={`pd-badge ${k.cor}`}><IconeBadge size={12} /> {k.badge}</span>
+                <span className={`pd-badge ${k.cor}`}>{k.badge}</span>
                 <small className="mono">{k.nota}</small>
               </div>
             </article>
@@ -160,34 +181,21 @@ export default function Pedidos() {
       <section className="filters-bar">
         <div className="search-field">
           <Search size={16} />
-          <input type="text" value={filtros.busca} onChange={mudar('busca')} placeholder="Filtrar por nº pedido (#PV), razão social, CNPJ ou SKU..." />
+          <input type="text" value={filtros.busca} onChange={mudar('busca')} placeholder="Filtrar por nº do pedido ou nome do cliente..." />
         </div>
-        <select value={filtros.canal} onChange={mudar('canal')} aria-label="Canal">
-          <option value="">Canal: todos os canais</option>
-          {filtroCanais.map(([v, r]) => <option key={v} value={v}>{r}</option>)}
+        <select value={filtros.status} onChange={mudar('status')} aria-label="Status">
+          <option value="">Status: todos</option>
+          {Object.entries(statusPedido).map(([v, s]) => <option key={v} value={v}>{s.rotulo}</option>)}
         </select>
-        <select value={filtros.comercial} onChange={mudar('comercial')} aria-label="Status comercial">
-          <option value="">Status comercial: todos</option>
-          {filtroStatusComercial.map(([v, r]) => <option key={v} value={v}>{r}</option>)}
-        </select>
-        <select value={filtros.estoque} onChange={mudar('estoque')} aria-label="Status de estoque">
-          <option value="">Status estoque: todos</option>
-          {filtroStatusEstoque.map(([v, r]) => <option key={v} value={v}>{r}</option>)}
-        </select>
-        <button type="button" className="secondary-button" onClick={() => { setFiltros(filtrosIniciais); avisar('Filtros redefinidos', 'Exibindo todos os registros da grade operacional.'); }}>
+        <input type="date" value={filtros.de} onChange={mudar('de')} aria-label="Data inicial" />
+        <input type="date" value={filtros.ate} onChange={mudar('ate')} aria-label="Data final" />
+        <button type="button" className="secondary-button" onClick={() => setFiltros(filtrosIniciais)}>
           <RotateCcw size={14} /> Limpar Filtros
         </button>
       </section>
 
       <div className="pd-resumo">
-        <span>Exibindo: <b>{filtrados.length} de 142 pedidos</b> • <em>Data base: hoje (tempo real)</em></span>
-        {selecionados.length > 0 && (
-          <div className="pd-bulk">
-            <span className="ciano"><ListChecks size={15} /> {selecionados.length} pedido(s) selecionado(s)</span>
-            <button type="button" className="btn-neutro" onClick={() => avisar('Picking', 'Enviando mapa de separação para a impressora do CD.')}><Printer size={14} /> Imprimir Picking</button>
-            <button type="button" className="pd-btn-verde" onClick={() => avisar('Baixa em lote', 'Estoque baixado para os pedidos selecionados.')}><CheckCheck size={14} /> Baixar Estoque em Lote</button>
-          </div>
-        )}
+        <span>Exibindo: <b>{filtrados.length} de {pedidos.length} pedidos</b></span>
       </div>
 
       <section className="dashboard-panel">
@@ -195,101 +203,80 @@ export default function Pedidos() {
           <table>
             <thead>
               <tr>
-                <th className="col-check"><input type="checkbox" checked={todos} onChange={alternarTodos} aria-label="Selecionar todos" /></th>
-                <th>Nº Pedido / Canal</th>
-                <th>Cliente &amp; CNPJ</th>
-                <th>Emissão &amp; Previsão</th>
-                <th>SKUs / Volumes</th>
+                <th>Nº Pedido</th>
+                <th>Cliente</th>
+                <th>Data</th>
+                <th>Itens</th>
                 <th className="col-num">Valor total (R$)</th>
-                <th>Status comercial</th>
-                <th>Status estoque</th>
+                <th className="col-num">Lucro</th>
+                <th>Status</th>
                 <th>Ações operacionais</th>
               </tr>
             </thead>
             <tbody>
               {filtrados.map((p) => {
-                const sc = statusComercial[p.statusCom];
-                const se = statusEstoque[p.statusEst];
-                const Canal = canais[p.canal].icone;
-                const IconeEst = se.icone;
+                const st = statusPedido[p.idc_status];
+                const aberto = p.idc_status === 'EM_PREPARACAO';
                 return (
-                  <tr key={p.id} className={p.erro ? 'linha-bloqueada' : ''}>
-                    <td className="col-check"><input type="checkbox" checked={selecionados.includes(p.id)} onChange={() => alternar(p.id)} aria-label={`Selecionar ${p.id}`} /></td>
+                  <tr key={p.id_pedido_venda}>
+                    <td><span className={`mono pd-id ${corId[p.idc_status]}`}><b>#{p.id_pedido_venda}</b></span></td>
+                    <td><b>{p.nom_cliente}</b></td>
                     <td>
                       <div className="celula-dupla">
-                        <span className={`mono pd-id ${corId[p.statusCom]}`}>
-                          <b>#{p.id}</b>
-                          {p.nfe && <ShieldCheck size={14} className="verde" title="DANFE autorizada" />}
-                          {p.api && <ArrowLeftRight size={14} className="ciano" title="Sincronizado via API" />}
-                          {p.erro && <CircleAlert size={14} className="erro" />}
-                        </span>
-                        <small className="pd-canal"><Canal size={13} /> {canais[p.canal].rotulo}</small>
+                        <span className="mono">{dataBR(p.dat_pedido)}</span>
+                        <small className="mono">{horaBR(p.dat_pedido)}</small>
                       </div>
                     </td>
-                    <td>
-                      <div className="celula-dupla">
-                        <span><b>{p.cliente}</b></span>
-                        <small className="mono">{p.cnpj} <i className={`pd-credito ${corCredito[p.credito]}`}>Crédito {p.credito}</i></small>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="celula-dupla">
-                        <span className="mono">{p.emissao}</span>
-                        <small className={p.previsaoErro ? 'erro' : ''}>{p.previsao}</small>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="celula-dupla">
-                        <span className="mono">{p.skus} SKU{p.skus > 1 ? 's' : ''} • {p.volumes}</span>
-                        <small className={p.embalagemErro ? 'erro' : ''}>{p.embalagem}</small>
-                      </div>
-                    </td>
+                    <td><span className="mono">{inteiro(p.qtd_itens)} {p.qtd_itens === 1 ? 'item' : 'itens'}</span></td>
+                    <td className="col-num"><span className="mono"><b>{brl(p.vlr_total)}</b></span></td>
                     <td className="col-num">
                       <div className="celula-dupla pd-dir">
-                        <span className="mono"><b>{brl(p.valor)}</b></span>
-                        <small>{p.pagamento}</small>
+                        <span className="mono">{brl(p.vlr_lucro)}</span>
+                        <small>{aberto ? 'Estimado' : p.idc_status === 'FINALIZADO' ? 'Realizado' : '—'}</small>
                       </div>
                     </td>
-                    <td><span className={`pill pd-pill ${sc.cor}`}><span className={sc.pulso ? 'pd-pisca' : ''} />{sc.rotulo}</span></td>
-                    <td><span className={`pd-estoque ${se.cor}`}><IconeEst size={14} /> {p.estoqueTexto}</span></td>
+                    <td><span className={`pill pd-pill ${st.cor}`}><span className={st.pulso ? 'pd-pisca' : ''} />{st.rotulo}</span></td>
                     <td>
                       <div className="acoes">
-                        <button type="button" title="Visualizar / editar pedido" onClick={() => abrir(p)}><FilePenLine size={15} /></button>
-                        <button type="button" title="Imprimir picking list" onClick={() => avisar('Espelho de picking gerado', 'Enviando mapa de separação para a impressora do CD.')}><Printer size={15} /></button>
-                        <button type="button" className="perigo" title="Cancelar pedido & estornar saldo" onClick={() => cancelar(p)}><CircleX size={15} /></button>
+                        <button type="button" title={aberto ? 'Visualizar / editar pedido' : 'Visualizar pedido'} onClick={() => abrir(p)}><FilePenLine size={15} /></button>
+                        {aberto && (
+                          <>
+                            <button type="button" title="Finalizar pedido & baixar estoque" onClick={() => finalizar(p)}><CheckCheck size={15} /></button>
+                            <button type="button" className="perigo" title="Cancelar pedido" onClick={() => cancelar(p)}><CircleX size={15} /></button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
                 );
               })}
-              {filtrados.length === 0 && <tr><td colSpan={9} className="vazio">Nenhum pedido encontrado com esses filtros.</td></tr>}
+              {carregando && <tr><td colSpan={8} className="vazio">Carregando pedidos…</td></tr>}
+              {!carregando && filtrados.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="vazio">
+                    {pedidos.length === 0 ? 'Nenhum pedido ainda. Clique em "Novo Pedido de Venda".' : 'Nenhum pedido encontrado com esses filtros.'}
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
 
         <div className="table-footer">
-          <span>Linhas por página: <select defaultValue="25"><option>10</option><option>25</option><option>50</option></select> &nbsp; 1 - {filtrados.length} de 142 resultados</span>
-          <div className="pd-pager">
-            <button type="button" disabled><ChevronsLeft size={16} /></button>
-            <button type="button" disabled><ChevronLeft size={16} /></button>
-            <b>1</b><button type="button">2</button><button type="button">3</button><span>...</span><button type="button">6</button>
-            <button type="button"><ChevronRight size={16} /></button>
-            <button type="button"><ChevronsRight size={16} /></button>
-          </div>
+          <span>Exibindo <strong>{filtrados.length}</strong> de <strong>{pedidos.length}</strong> pedidos</span>
         </div>
       </section>
-
-      <p className="demo-note">Dados ilustrativos para visualização da interface.</p>
 
       <PedidoDrawer
         aberto={drawer.aberto}
         pedido={drawer.pedido}
-        proximoId={`PV-${contador}`}
+        clientes={clientes}
+        produtos={produtos}
         onClose={fechar}
-        onConfirmar={confirmarPedido}
-        onRascunho={salvarRascunho}
-        onExcluir={excluirDoDrawer}
-        onAviso={avisar}
+        onSalvar={salvar}
+        onFinalizar={finalizar}
+        onCancelar={cancelar}
+        onAviso={(titulo, msg) => avisar(titulo, msg, true)}
       />
       <Toast toast={toast} />
     </div>

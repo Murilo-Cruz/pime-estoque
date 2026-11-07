@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
-import { BadgeCheck, Contact, CreditCard, Receipt, Save, Trash2, Truck, X } from 'lucide-react';
-import { segmentos } from '../data/clientes';
+import { Contact, Receipt, Save, Trash2, X } from 'lucide-react';
+import { brl, codigo, dataBR } from '../utils/formatos';
 
 const abas = [
   { id: 'dados', rotulo: 'Dados Cadastrais', icone: Contact },
-  { id: 'endereco', rotulo: 'Endereço & Logística', icone: Truck },
-
-  { id: 'historico', rotulo: 'Histórico', icone: Receipt },
+  { id: 'historico', rotulo: 'Pedidos', icone: Receipt },
 ];
+
+const rotuloStatus = { EM_PREPARACAO: 'Em preparação', FINALIZADO: 'Finalizado', CANCELADO: 'Cancelado' };
+
+const vazio = { nom_emitente: '', des_documento: '', des_telefone: '', des_email: '', idc_tipo: 'CLIENTE' };
 
 function Campo({ rotulo, span = 1, children }) {
   return (
@@ -18,25 +20,27 @@ function Campo({ rotulo, span = 1, children }) {
   );
 }
 
-function Secao({ titulo, colunas = 2, children }) {
-  return (
-    <div className="drawer-secao">
-      <h3>{titulo}</h3>
-      <div className="drawer-grid" style={{ gridTemplateColumns: `repeat(${colunas}, minmax(0, 1fr))` }}>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-export default function ClienteDrawer({ aberto, cliente, onClose }) {
+export default function ClienteDrawer({ aberto, cliente, pedidos = [], onClose, onSalvar, onExcluir, onErro }) {
   const [aba, setAba] = useState('dados');
-  const [habilitado, setHabilitado] = useState(true);
+  const [form, setForm] = useState(vazio);
+  const [salvando, setSalvando] = useState(false);
   const novo = !cliente;
 
   useEffect(() => {
-    if (aberto) setAba('dados');
-  }, [aberto]);
+    if (!aberto) return;
+    setAba('dados');
+    setForm(
+      cliente
+        ? {
+            nom_emitente: cliente.nom_emitente,
+            des_documento: cliente.des_documento ?? '',
+            des_telefone: cliente.des_telefone ?? '',
+            des_email: cliente.des_email ?? '',
+            idc_tipo: cliente.idc_tipo === 'FORNECEDOR' ? 'CLIENTE' : cliente.idc_tipo,
+          }
+        : vazio,
+    );
+  }, [aberto, cliente]);
 
   useEffect(() => {
     if (!aberto) return;
@@ -45,9 +49,24 @@ export default function ClienteDrawer({ aberto, cliente, onClose }) {
     return () => document.removeEventListener('keydown', aoTeclar);
   }, [aberto, onClose]);
 
+  const mudar = (campo) => (e) => setForm((f) => ({ ...f, [campo]: e.target.value }));
+
   const iniciais = novo
     ? '+'
-    : cliente.razao.split(' ').slice(0, 2).map((p) => p[0]).join('').toUpperCase();
+    : cliente.nom_emitente.split(' ').slice(0, 2).map((p) => p[0]).join('').toUpperCase();
+
+  async function salvar() {
+    if (!form.nom_emitente.trim()) return onErro('Informe o nome do cliente.');
+    setSalvando(true);
+    await onSalvar({
+      nom_emitente: form.nom_emitente.trim(),
+      des_documento: form.des_documento.trim() || null,
+      des_telefone: form.des_telefone.trim() || null,
+      des_email: form.des_email.trim() || null,
+      idc_tipo: form.idc_tipo,
+    });
+    setSalvando(false);
+  }
 
   return (
     <>
@@ -64,103 +83,84 @@ export default function ClienteDrawer({ aberto, cliente, onClose }) {
           <div className="drawer-titulo">
             <div>
               <strong>{novo ? 'Novo Cliente' : 'Editar Cliente'}</strong>
-              {!novo && <span className="drawer-codigo">#{cliente.codigo}</span>}
+              {!novo && <span className="drawer-codigo">#{codigo('CLI', cliente.id_emitente)}</span>}
             </div>
-            {!novo && <small>Última sincronização SEFAZ há 2 horas</small>}
           </div>
           <button type="button" className="drawer-fechar" onClick={onClose} aria-label="Fechar">
             <X size={20} />
           </button>
         </header>
 
-        <nav className="drawer-abas">
-          {abas.map(({ id, rotulo, icone: Icone }) => (
-            <button
-              key={id}
-              type="button"
-              className={aba === id ? 'ativa' : ''}
-              onClick={() => setAba(id)}
-            >
-              <Icone size={14} /> {rotulo}
-            </button>
-          ))}
-        </nav>
+        {!novo && (
+          <nav className="drawer-abas">
+            {abas.map(({ id, rotulo, icone: Icone }) => (
+              <button key={id} type="button" className={aba === id ? 'ativa' : ''} onClick={() => setAba(id)}>
+                <Icone size={14} /> {rotulo}
+              </button>
+            ))}
+          </nav>
+        )}
 
-        {/* key recarrega os defaultValue quando troca de cliente */}
-        <div className="drawer-corpo" key={cliente?.codigo ?? 'novo'}>
-          
-            
-            
-            
-              
-          
-
+        <div className="drawer-corpo">
           {aba === 'dados' && (
-            <Secao titulo="Identificação fiscal & jurídica">
-              <Campo rotulo="Razão social completa" span={2}>
-                <input type="text" defaultValue={cliente?.razaoCompleta ?? cliente?.razao ?? ''} />
-              </Campo>
-              <Campo rotulo="Nome fantasia">
-                <input type="text" defaultValue={cliente?.fantasia ?? ''} />
-              </Campo>
-              <Campo rotulo="Segmento de mercado">
-                <select defaultValue={cliente?.segmento ?? segmentos[0]}>
-                  {segmentos.map((s) => <option key={s}>{s}</option>)}
-                </select>
-              </Campo>
-              <Campo rotulo="CNPJ">
-                <input className="mono" type="text" defaultValue={cliente?.cnpj ?? ''} />
-              </Campo>
-              <Campo rotulo="Inscrição estadual (IE)">
-                <input className="mono" type="text" defaultValue={cliente?.ie ?? ''} />
-              </Campo>
-              <Campo rotulo="E-mail financeiro ">
-                <input type="email" defaultValue={cliente?.emailFinanceiro ?? cliente?.email ?? ''} />
-              </Campo>
-              <Campo rotulo="Telefone / WhatsApp comercial">
-                <input className="mono" type="text" defaultValue={cliente?.telefone ?? ''} />
-              </Campo>
-            </Secao>
+            <div className="drawer-secao">
+              <h3>Identificação & contato</h3>
+              <div className="drawer-grid" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+                <Campo rotulo="Nome / razão social *" span={2}>
+                  <input type="text" maxLength={150} value={form.nom_emitente} onChange={mudar('nom_emitente')} />
+                </Campo>
+                <Campo rotulo="CPF ou CNPJ">
+                  <input className="mono" type="text" maxLength={18} value={form.des_documento} onChange={mudar('des_documento')} />
+                </Campo>
+                <Campo rotulo="Tipo">
+                  <select value={form.idc_tipo} onChange={mudar('idc_tipo')}>
+                    <option value="CLIENTE">Somente cliente</option>
+                    <option value="AMBOS">Cliente e fornecedor</option>
+                  </select>
+                </Campo>
+                <Campo rotulo="E-mail">
+                  <input type="email" maxLength={150} value={form.des_email} onChange={mudar('des_email')} />
+                </Campo>
+                <Campo rotulo="Telefone">
+                  <input className="mono" type="text" maxLength={20} value={form.des_telefone} onChange={mudar('des_telefone')} />
+                </Campo>
+              </div>
+            </div>
           )}
-
-          {aba === 'endereco' && (
-            <Secao titulo="Endereço de entrega & logística" colunas={3}>
-              <Campo rotulo="CEP">
-                <input className="mono" type="text" defaultValue={cliente?.cep ?? ''} />
-              </Campo>
-              <Campo rotulo="Logradouro / avenida" span={2}>
-                <input type="text" defaultValue={cliente?.logradouro ?? ''} />
-              </Campo>
-              <Campo rotulo="Número">
-                <input type="text" defaultValue={cliente?.numero ?? ''} />
-              </Campo>
-              <Campo rotulo="Bairro">
-                <input type="text" defaultValue={cliente?.bairro ?? ''} />
-              </Campo>
-              <Campo rotulo="Cidade / UF">
-                <input type="text" defaultValue={cliente?.cidade ?? ''} />
-              </Campo>
-            </Secao>
-          )}
-
-          
-             
-           
-        
 
           {aba === 'historico' && (
-            <p className="drawer-vazio">O histórico de pedidos e notas deste cliente aparecerá aqui.</p>
+            pedidos.length === 0
+              ? <p className="drawer-vazio">Este cliente ainda não tem pedidos de venda.</p>
+              : (
+                <div className="table-wrap">
+                  <table>
+                    <thead><tr><th>Pedido</th><th>Data</th><th>Status</th><th className="col-num">Valor</th></tr></thead>
+                    <tbody>
+                      {pedidos.map((p) => (
+                        <tr key={p.id_pedido_venda}>
+                          <td className="codigo">#{p.id_pedido_venda}</td>
+                          <td>{dataBR(p.dat_pedido)}</td>
+                          <td>{rotuloStatus[p.idc_status]}</td>
+                          <td className="col-num">{brl(p.vlr_total)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
           )}
         </div>
 
         <footer className="drawer-rodape">
-          <button type="button" className="btn-perigo">
-            <Trash2 size={15} /> Excluir
-          </button>
+          {novo ? <span /> : (
+            <button type="button" className="btn-perigo" onClick={() => onExcluir(cliente)}>
+              <Trash2 size={15} /> Excluir
+            </button>
+          )}
           <div>
             <button type="button" className="btn-neutro" onClick={onClose}>Cancelar</button>
-            <button type="button" className="primary-button" onClick={onClose}>
-              <Save size={15} /> Salvar alterações
+            <button type="button" className="primary-button" onClick={salvar} disabled={salvando}>
+              <Save size={15} /> {salvando ? 'Salvando…' : 'Salvar'}
             </button>
           </div>
         </footer>

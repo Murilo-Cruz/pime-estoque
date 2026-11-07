@@ -1,118 +1,109 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ChevronLeft,
-  ChevronRight,
-  Download,
-  Eye,
-  EllipsisVertical,
-  FilterX,
-  History,
-  Pencil,
-  Search,
-  TriangleAlert,
-  Upload,
-  UserPlus,
-  UsersRound,
+  CircleDollarSign, FilterX, Pencil, Search, ShoppingCart, UserPlus, UsersRound, Wallet,
 } from 'lucide-react';
 import ClienteDrawer from '../components/ClienteDrawer';
-import { clientes, kpis, segmentos, ufs } from '../data/clientes';
+import Toast from '../components/Toast';
+import { useApi } from '../hooks/useApi';
+import { useToast } from '../hooks/useToast';
+import { brl, codigo, inteiro } from '../utils/formatos';
 import './Clientes.css';
 
-const filtrosIniciais = { busca: '', segmento: '', status: '', uf: '' };
-
-const rotuloStatus = { ativo: 'Ativo', bloqueado: 'Bloqueado', analise: 'Em Análise' };
-
-function Pagina({ exibindo, total }) {
-  const [pagina, setPagina] = useState(1);
-  const ultima = 143;
-
-  const botao = (n) => (
-    <button
-      key={n}
-      type="button"
-      className={`pager-btn ${pagina === n ? 'ativo' : ''}`}
-      onClick={() => setPagina(n)}
-    >
-      {n}
-    </button>
-  );
-
-  return (
-    <div className="table-footer">
-      <span>
-        Exibindo <strong>{exibindo}</strong> de <strong>{total}</strong> clientes
-      </span>
-
-      <div className="pager">
-        <button
-          type="button"
-          className="pager-btn"
-          disabled={pagina === 1}
-          onClick={() => setPagina((p) => p - 1)}
-          aria-label="Página anterior"
-        >
-          <ChevronLeft size={14} />
-        </button>
-        {[1, 2, 3].map(botao)}
-        <span className="pager-reticencias">...</span>
-        {botao(ultima)}
-        <button
-          type="button"
-          className="pager-btn"
-          disabled={pagina === ultima}
-          onClick={() => setPagina((p) => p + 1)}
-          aria-label="Próxima página"
-        >
-          <ChevronRight size={14} />
-        </button>
-      </div>
-    </div>
-  );
-}
+const filtrosIniciais = { busca: '', tipo: '' };
+const rotuloTipo = { CLIENTE: 'Cliente', AMBOS: 'Cliente e fornecedor' };
 
 export default function Clientes() {
+  const chamar = useApi();
+  const [clientes, setClientes] = useState([]);
+  const [pedidos, setPedidos] = useState([]);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState('');
   const [filtros, setFiltros] = useState(filtrosIniciais);
-  const [selecionados, setSelecionados] = useState(['CLI-0841']);
   const [drawerAberto, setDrawerAberto] = useState(false);
   const [clienteEditando, setClienteEditando] = useState(null);
+  const [toast, avisar] = useToast();
+
+  const carregar = useCallback(async () => {
+    setErro('');
+    try {
+      const [cli, ped] = await Promise.all([chamar('/emitentes?tipo=CLIENTE'), chamar('/pedidos')]);
+      setClientes(cli);
+      setPedidos(ped);
+    } catch (e) {
+      setErro(e.message);
+    } finally {
+      setCarregando(false);
+    }
+  }, [chamar]);
+
+  useEffect(() => { carregar(); }, [carregar]);
+
+  // Agrega os pedidos por cliente (em aberto = EM_PREPARACAO, faturado = FINALIZADO)
+  const resumoPorCliente = useMemo(() => {
+    const mapa = new Map();
+    for (const p of pedidos) {
+      const r = mapa.get(p.id_cliente) ?? { abertos: 0, vlrAberto: 0, finalizados: 0, vlrFaturado: 0 };
+      if (p.idc_status === 'EM_PREPARACAO') { r.abertos += 1; r.vlrAberto += p.vlr_total; }
+      if (p.idc_status === 'FINALIZADO') { r.finalizados += 1; r.vlrFaturado += p.vlr_total; }
+      mapa.set(p.id_cliente, r);
+    }
+    return mapa;
+  }, [pedidos]);
+
+  const kpis = useMemo(() => {
+    const resumos = [...resumoPorCliente.values()];
+    const abertos = resumos.reduce((s, r) => s + r.abertos, 0);
+    return [
+      { titulo: 'Total de clientes', valor: inteiro(clientes.length), badge: `${clientes.filter((c) => c.idc_tipo === 'AMBOS').length} também fornecem`, detalhe: 'Cadastrados como cliente', icone: UsersRound, cor: 'green' },
+      { titulo: 'Clientes com pedido aberto', valor: inteiro(resumos.filter((r) => r.abertos > 0).length), badge: `${abertos} pedido(s)`, detalhe: 'Pedidos em preparação', icone: ShoppingCart, cor: 'cyan' },
+      { titulo: 'Valor em pedidos abertos', valor: brl(resumos.reduce((s, r) => s + r.vlrAberto, 0)), badge: 'A faturar', detalhe: 'Soma dos pedidos em preparação', icone: Wallet, cor: 'cyan' },
+      { titulo: 'Total faturado', valor: brl(resumos.reduce((s, r) => s + r.vlrFaturado, 0)), badge: `${resumos.reduce((s, r) => s + r.finalizados, 0)} pedido(s)`, detalhe: 'Pedidos finalizados', icone: CircleDollarSign, cor: 'green' },
+    ];
+  }, [clientes, resumoPorCliente]);
 
   const filtrados = useMemo(() => {
     const termo = filtros.busca.trim().toLowerCase();
-    return clientes.filter((c) => {
-      const bateBusca =
-        !termo ||
-        c.razao.toLowerCase().includes(termo) ||
-        c.cnpj.includes(termo) ||
-        c.codigo.toLowerCase().includes(termo);
-      return (
-        bateBusca &&
-        (!filtros.segmento || c.segmento === filtros.segmento) &&
-        (!filtros.status || c.status === filtros.status) &&
-        (!filtros.uf || c.uf === filtros.uf)
-      );
-    });
-  }, [filtros]);
+    return clientes.filter((c) => (
+      (!termo ||
+        c.nom_emitente.toLowerCase().includes(termo) ||
+        (c.des_documento ?? '').toLowerCase().includes(termo) ||
+        codigo('CLI', c.id_emitente).toLowerCase().includes(termo)) &&
+      (!filtros.tipo || c.idc_tipo === filtros.tipo)
+    ));
+  }, [clientes, filtros]);
 
   const mudar = (campo) => (e) => setFiltros((f) => ({ ...f, [campo]: e.target.value }));
 
-  const todosMarcados =
-    filtrados.length > 0 && filtrados.every((c) => selecionados.includes(c.codigo));
+  const abrirEdicao = (cliente) => { setClienteEditando(cliente); setDrawerAberto(true); };
+  const abrirNovo = () => { setClienteEditando(null); setDrawerAberto(true); };
+  const fechar = () => setDrawerAberto(false);
 
-  const alternar = (codigo) =>
-    setSelecionados((s) => (s.includes(codigo) ? s.filter((x) => x !== codigo) : [...s, codigo]));
+  async function salvar(dados) {
+    try {
+      const editando = Boolean(clienteEditando);
+      await chamar(editando ? `/emitentes/${clienteEditando.id_emitente}` : '/emitentes', {
+        metodo: editando ? 'PUT' : 'POST',
+        corpo: dados,
+      });
+      fechar();
+      await carregar();
+      avisar('Cliente salvo', `${dados.nom_emitente} salvo com sucesso.`);
+    } catch (e) {
+      avisar('Não foi possível salvar', e.message, true);
+    }
+  }
 
-  const alternarTodos = () =>
-    setSelecionados(todosMarcados ? [] : filtrados.map((c) => c.codigo));
-
-  const abrirEdicao = (cliente) => {
-    setClienteEditando(cliente);
-    setDrawerAberto(true);
-  };
-
-  const abrirNovo = () => {
-    setClienteEditando(null);
-    setDrawerAberto(true);
-  };
+  async function excluir(cliente) {
+    if (!window.confirm(`Excluir o cliente "${cliente.nom_emitente}"? Esta ação não pode ser desfeita.`)) return;
+    try {
+      await chamar(`/emitentes/${cliente.id_emitente}`, { metodo: 'DELETE' });
+      fechar();
+      await carregar();
+      avisar('Cliente excluído', cliente.nom_emitente);
+    } catch (e) {
+      avisar('Não foi possível excluir', e.message, true);
+    }
+  }
 
   return (
     <div className="dashboard clientes-page">
@@ -120,7 +111,7 @@ export default function Clientes() {
         <div>
           <span className="eyebrow"><UsersRound size={14} /> CADASTRO</span>
           <h1>Gestão de Clientes</h1>
-          <p>Controle cadastral, limites de crédito, histórico fiscal e vínculo com pedidos de venda.</p>
+          <p>Cadastro de clientes e acompanhamento dos pedidos de venda vinculados a cada um.</p>
         </div>
 
         <div className="page-actions">
@@ -129,6 +120,13 @@ export default function Clientes() {
           </button>
         </div>
       </div>
+
+      {erro && (
+        <div className="aviso-erro">
+          <span>Não foi possível carregar os clientes: {erro}</span>
+          <button type="button" onClick={carregar}>Tentar novamente</button>
+        </div>
+      )}
 
       <section className="stats-grid" aria-label="Resumo de clientes">
         {kpis.map(({ titulo, valor, badge, detalhe, icone: Icone, cor }) => (
@@ -149,29 +147,13 @@ export default function Clientes() {
       <section className="filters-bar">
         <div className="search-field">
           <Search size={16} />
-          <input
-            type="text"
-            value={filtros.busca}
-            onChange={mudar('busca')}
-            placeholder="Buscar por razão social, CNPJ ou código..."
-          />
+          <input type="text" value={filtros.busca} onChange={mudar('busca')} placeholder="Buscar por nome, CPF/CNPJ ou código..." />
         </div>
 
-        <select value={filtros.segmento} onChange={mudar('segmento')} aria-label="Segmento">
-          <option value="">Segmento: Todos</option>
-          {segmentos.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-
-        <select value={filtros.status} onChange={mudar('status')} aria-label="Status">
-          <option value="">Status: Todos</option>
-          <option value="ativo">Ativo</option>
-          <option value="bloqueado">Bloqueado</option>
-          <option value="analise">Em Análise</option>
-        </select>
-
-        <select value={filtros.uf} onChange={mudar('uf')} aria-label="UF">
-          <option value="">UF: Todas</option>
-          {ufs.map(([sigla, nome]) => <option key={sigla} value={sigla}>{nome}</option>)}
+        <select value={filtros.tipo} onChange={mudar('tipo')} aria-label="Tipo">
+          <option value="">Tipo: Todos</option>
+          <option value="CLIENTE">Somente cliente</option>
+          <option value="AMBOS">Cliente e fornecedor</option>
         </select>
 
         <button type="button" className="secondary-button" onClick={() => setFiltros(filtrosIniciais)}>
@@ -184,113 +166,87 @@ export default function Clientes() {
           <table>
             <thead>
               <tr>
-                <th className="col-check">
-                  <input type="checkbox" checked={todosMarcados} onChange={alternarTodos} aria-label="Selecionar todos" />
-                </th>
                 <th>Código</th>
-                <th>Cliente / CNPJ</th>
-                <th>Segmento / UF</th>
+                <th>Cliente / Documento</th>
+                <th>Tipo</th>
                 <th>Contato</th>
-                <th className="col-num">Limite disponível</th>
                 <th className="col-num">Pedidos abertos</th>
-                <th>Status fiscal</th>
+                <th className="col-num">Total faturado</th>
                 <th>Ações</th>
               </tr>
             </thead>
             <tbody>
               {filtrados.map((c) => {
-                const bloqueado = c.status === 'bloqueado';
+                const r = resumoPorCliente.get(c.id_emitente);
                 return (
-                  <tr key={c.codigo} className={bloqueado ? 'linha-bloqueada' : ''}>
-                    <td className="col-check">
-                      <input
-                        type="checkbox"
-                        checked={selecionados.includes(c.codigo)}
-                        onChange={() => alternar(c.codigo)}
-                        aria-label={`Selecionar ${c.razao}`}
-                      />
-                    </td>
-                    <td className={`codigo ${bloqueado ? 'erro' : ''}`}>{c.codigo}</td>
+                  <tr key={c.id_emitente}>
+                    <td className="codigo">{codigo('CLI', c.id_emitente)}</td>
                     <td>
                       <div className="product-cell">
                         <span>
-                          <strong>
-                            {c.razao}
-                            {bloqueado && <TriangleAlert size={13} className="icone-alerta" />}
-                          </strong>
-                          <small>{c.cnpj} • IE {c.ie}</small>
+                          <strong>{c.nom_emitente}</strong>
+                          <small>{c.des_documento || 'Sem documento'}</small>
                         </span>
                       </div>
                     </td>
-                    <td>
-                      <span className="tag">{c.segmento}</span>
-                      <span className="tag uf">{c.uf}</span>
-                    </td>
+                    <td><span className="tag">{rotuloTipo[c.idc_tipo] ?? c.idc_tipo}</span></td>
                     <td>
                       <div className="celula-dupla">
-                        <span>{c.email}</span>
-                        <small>{c.telefone}</small>
+                        <span>{c.des_email || '—'}</span>
+                        <small>{c.des_telefone || '—'}</small>
                       </div>
                     </td>
                     <td className="col-num">
                       <div className="celula-dupla">
-                        <span className={`valor ${c.status}`}>{c.limite}</span>
-                        <small className={c.status !== 'ativo' ? c.status : ''}>{c.limiteNota}</small>
+                        <span className="valor neutro">{brl(r?.vlrAberto ?? 0)}</span>
+                        <small>{r?.abertos ? `${r.abertos} pedido(s)` : 'Nenhum pedido aberto'}</small>
                       </div>
                     </td>
                     <td className="col-num">
                       <div className="celula-dupla">
-                        <span className="valor neutro">{c.pedidos}</span>
-                        <small className={bloqueado ? 'bloqueado' : ''}>{c.pedidosNota}</small>
+                        <span className="valor ativo">{brl(r?.vlrFaturado ?? 0)}</span>
+                        <small>{r?.finalizados ? `${r.finalizados} pedido(s)` : 'Sem histórico'}</small>
                       </div>
-                    </td>
-                    <td>
-                      <span className={`pill ${c.status}`}>
-                        <span />{rotuloStatus[c.status]}
-                      </span>
                     </td>
                     <td>
                       <div className="acoes">
                         <button type="button" title="Editar cliente" onClick={() => abrirEdicao(c)}>
                           <Pencil size={15} />
                         </button>
-                        <button type="button" title="Ver histórico">
-                          <Eye size={15} />
-                        </button>
-                        {bloqueado ? (
-                          <button type="button" className="perigo" title="Histórico de inadimplência">
-                            <History size={15} />
-                          </button>
-                        ) : (
-                          <button type="button" title="Mais ações">
-                            <EllipsisVertical size={15} />
-                          </button>
-                        )}
                       </div>
                     </td>
                   </tr>
                 );
               })}
 
-              {filtrados.length === 0 && (
+              {carregando && <tr><td colSpan={7} className="vazio">Carregando clientes…</td></tr>}
+              {!carregando && filtrados.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="vazio">Nenhum cliente encontrado com esses filtros.</td>
+                  <td colSpan={7} className="vazio">
+                    {clientes.length === 0 ? 'Nenhum cliente cadastrado ainda. Clique em "Novo Cliente".' : 'Nenhum cliente encontrado com esses filtros.'}
+                  </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
 
-        <Pagina exibindo={filtrados.length} total={clientes.length} />
+        <div className="table-footer">
+          <span>Exibindo <strong>{filtrados.length}</strong> de <strong>{clientes.length}</strong> clientes</span>
+        </div>
       </section>
-
-      <p className="demo-note">Dados ilustrativos para visualização da interface.</p>
 
       <ClienteDrawer
         aberto={drawerAberto}
         cliente={clienteEditando}
-        onClose={() => setDrawerAberto(false)}
+        pedidos={pedidos.filter((p) => p.id_cliente === clienteEditando?.id_emitente)}
+        onClose={fechar}
+        onSalvar={salvar}
+        onExcluir={excluir}
+        onErro={(msg) => avisar('Atenção', msg, true)}
       />
+
+      <Toast toast={toast} />
     </div>
   );
 }

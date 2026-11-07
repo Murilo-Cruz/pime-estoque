@@ -1,17 +1,7 @@
 import { useEffect, useState } from 'react';
-import {
-  BadgeCheck,
-  CircleCheck,
-  CloudUpload,
-  Contact,
-  Handshake,
-  MapPin,
-  Save,
-  Trash2,
-  Truck,
-  X,
-} from 'lucide-react';
-import { condicoesPagamento, statusFornecedor, tiposFornecedor } from '../data/emitentes';
+import { BadgeCheck, Contact, Handshake, Save, Trash2, X } from 'lucide-react';
+
+const vazio = { nom_emitente: '', des_documento: '', des_telefone: '', des_email: '', idc_tipo: 'FORNECEDOR' };
 
 function Secao({ icone: Icone, cor, titulo, children }) {
   return (
@@ -34,24 +24,43 @@ function Campo({ rotulo, span = 1, children }) {
 }
 
 export default function EmitenteModal({ aberto, emitente, onClose, onSalvar, onExcluir }) {
-  const [arquivo, setArquivo] = useState('');
+  const [form, setForm] = useState(vazio);
+  const [salvando, setSalvando] = useState(false);
   const novo = !emitente;
 
   useEffect(() => {
     if (!aberto) return;
-    setArquivo('');
+    setForm(
+      emitente
+        ? {
+            nom_emitente: emitente.nom_emitente,
+            des_documento: emitente.des_documento ?? '',
+            des_telefone: emitente.des_telefone ?? '',
+            des_email: emitente.des_email ?? '',
+            idc_tipo: emitente.idc_tipo === 'CLIENTE' ? 'FORNECEDOR' : emitente.idc_tipo,
+          }
+        : vazio,
+    );
     const aoTeclar = (e) => e.key === 'Escape' && onClose();
     document.addEventListener('keydown', aoTeclar);
     return () => document.removeEventListener('keydown', aoTeclar);
-  }, [aberto, onClose]);
+  }, [aberto, emitente, onClose]);
 
   if (!aberto) return null;
 
-  const contratoValido = emitente?.contratoVence;
+  const mudar = (campo) => (e) => setForm((f) => ({ ...f, [campo]: e.target.value }));
 
-  function enviar(e) {
+  async function enviar(e) {
     e.preventDefault();
-    onSalvar(novo);
+    setSalvando(true);
+    await onSalvar({
+      nom_emitente: form.nom_emitente.trim(),
+      des_documento: form.des_documento.trim() || null,
+      des_telefone: form.des_telefone.trim() || null,
+      des_email: form.des_email.trim() || null,
+      idc_tipo: form.idc_tipo,
+    });
+    setSalvando(false);
   }
 
   return (
@@ -60,131 +69,40 @@ export default function EmitenteModal({ aberto, emitente, onClose, onSalvar, onE
         <header className="em-modal-topo">
           <span className="em-modal-icone"><Handshake size={20} /></span>
           <div>
-            <h2>{novo ? 'Cadastrar Novo Fornecedor' : `Editar Fornecedor: ${emitente.nome}`}</h2>
-            <small>Dados cadastrais, condições comerciais, contato e contrato de fornecimento</small>
+            <h2>{novo ? 'Cadastrar Novo Fornecedor' : `Editar Fornecedor: ${emitente.nom_emitente}`}</h2>
+            <small>Dados cadastrais e contato</small>
           </div>
           <button type="button" className="em-icon-btn" onClick={onClose} aria-label="Fechar">
             <X size={20} />
           </button>
         </header>
 
-        {/* key recarrega os defaultValue quando troca de fornecedor */}
-        <form id="form-emitente" className="em-modal-corpo" key={emitente?.id ?? 'novo'} onSubmit={enviar}>
-          <Secao icone={BadgeCheck} cor="verde" titulo="1. Identificação jurídica & cadastral">
+        <form id="form-emitente" className="em-modal-corpo" onSubmit={enviar}>
+          <Secao icone={BadgeCheck} cor="verde" titulo="1. Identificação">
             <div className="em-grid em-grid-2">
-              <Campo rotulo="Razão social completa *">
-                <input required type="text" defaultValue={emitente?.razaoSocial ?? ''} />
+              <Campo rotulo="Nome / razão social *">
+                <input required type="text" maxLength={150} value={form.nom_emitente} onChange={mudar('nom_emitente')} />
               </Campo>
-              <Campo rotulo="Nome fantasia / identificador interno *">
-                <input required type="text" defaultValue={emitente?.nome ?? ''} />
+              <Campo rotulo="CPF ou CNPJ">
+                <input className="mono" type="text" maxLength={18} value={form.des_documento} onChange={mudar('des_documento')} />
               </Campo>
-              <Campo rotulo="CNPJ *">
-                <input required className="mono" type="text" defaultValue={emitente?.cnpj ?? ''} />
-              </Campo>
-              <Campo rotulo="Inscrição estadual (IE)">
-                <input className="mono" type="text" defaultValue={emitente?.ie ?? ''} />
-              </Campo>
-              <Campo rotulo="Tipo de fornecedor *">
-                <select defaultValue={emitente?.tipo ?? 'fabricante'}>
-                  {tiposFornecedor.map(([valor, rotulo]) => (
-                    <option key={valor} value={valor}>{rotulo}</option>
-                  ))}
+              <Campo rotulo="Tipo *">
+                <select value={form.idc_tipo} onChange={mudar('idc_tipo')}>
+                  <option value="FORNECEDOR">Somente fornecedor</option>
+                  <option value="AMBOS">Fornecedor e cliente</option>
                 </select>
               </Campo>
-              <Campo rotulo="Categorias fornecidas *">
-                <input type="text" placeholder="Ex: Controladores, Sensores" defaultValue={emitente?.categoria ?? ''} />
-              </Campo>
             </div>
           </Secao>
 
-          <Secao icone={MapPin} cor="ciano" titulo="2. Endereço & localização">
-            <div className="em-grid em-grid-4">
-              <Campo rotulo="CEP *">
-                <input className="mono" type="text" defaultValue={emitente?.cep ?? ''} />
-              </Campo>
-              <Campo rotulo="Logradouro / avenida / rua *" span={2}>
-                <input type="text" defaultValue={emitente?.logradouro ?? ''} />
-              </Campo>
-              <Campo rotulo="Número *">
-                <input type="text" defaultValue={emitente?.numero ?? ''} />
-              </Campo>
-              <Campo rotulo="Complemento ">
-                <input type="text" defaultValue={emitente?.complemento ?? ''} />
-              </Campo>
-              <Campo rotulo="Bairro *">
-                <input type="text" defaultValue={emitente?.bairro ?? ''} />
-              </Campo>
-              <Campo rotulo="Município *">
-                <input type="text" defaultValue={emitente?.cidade ?? ''} />
-              </Campo>
-              <Campo rotulo="UF * / cód. IBGE cidade">
-                <div className="em-par">
-                  <input className="maiusculo" maxLength={2} type="text" defaultValue={emitente?.uf ?? 'SP'} />
-                  <input className="mono" type="text" defaultValue={emitente?.ibge ?? ''} />
-                </div>
-              </Campo>
-            </div>
-          </Secao>
-
-          <Secao icone={Truck} cor="verde" titulo="3. Condições comerciais & logística de compra">
+          <Secao icone={Contact} cor="ciano" titulo="2. Contato">
             <div className="em-grid em-grid-3">
-              <Campo rotulo="Condição de pagamento *">
-                <select defaultValue={emitente?.pagamento ?? condicoesPagamento[0]}>
-                  {condicoesPagamento.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </Campo>
-              <Campo rotulo="Prazo de entrega (dias) *">
-                <input className="mono" type="number" min="0" defaultValue={parseInt(emitente?.prazoEntrega ?? '7', 10)} />
-              </Campo>
-              <Campo rotulo="Pedido mínimo (R$)">
-                <input className="mono" type="text" defaultValue={emitente?.pedidoMinimo ?? ''} />
-              </Campo>
-
-
-            </div>
-          </Secao>
-
-          <Secao icone={Contact} cor="ciano" titulo="4. Contato comercial">
-            <div className="em-grid em-grid-3">
-              <Campo rotulo="Nome do contato *">
-                <input type="text" defaultValue={emitente?.contato ?? ''} />
-              </Campo>
-              <Campo rotulo="E-mail para pedidos *">
-                <input type="email" defaultValue={emitente?.email ?? ''} />
+              <Campo rotulo="E-mail">
+                <input type="email" maxLength={150} value={form.des_email} onChange={mudar('des_email')} />
               </Campo>
               <Campo rotulo="Telefone / WhatsApp">
-                <input className="mono" type="text" defaultValue={emitente?.telefone ?? ''} />
+                <input className="mono" type="text" maxLength={20} value={form.des_telefone} onChange={mudar('des_telefone')} />
               </Campo>
-            </div>
-          </Secao>
-
-          <Secao icone={Handshake} cor="verde" titulo="5. Contrato de fornecimento (PDF)">
-            <div className="em-cert">
-              <label className="em-upload">
-                <CloudUpload size={34} />
-                <strong>{arquivo || 'Arraste ou selecione o contrato em PDF'}</strong>
-                <small>Contrato assinado, aditivos ou tabela de preços (tamanho máx: 10MB)</small>
-                <input
-                  type="file"
-                  accept=".pdf,.doc,.docx"
-                  hidden
-                  onChange={(e) => setArquivo(e.target.files?.[0]?.name ?? '')}
-                />
-              </label>
-
-              <div className="em-cert-lado">
-                <Campo rotulo="Vigência do contrato até">
-                  <input className="mono" type="text" placeholder="dd/mm/aaaa" defaultValue={emitente?.contratoVence ?? ''} />
-                </Campo>
-
-                {contratoValido && (
-                  <div className="em-validacao">
-                    <small>Situação atual:</small>
-                    <span><CircleCheck size={14} /> Contrato vigente</span>
-                    <code>Vencimento: {emitente.contratoVence}</code>
-                  </div>
-                )}
-              </div>
             </div>
           </Secao>
         </form>
@@ -192,15 +110,15 @@ export default function EmitenteModal({ aberto, emitente, onClose, onSalvar, onE
         <footer className="em-modal-rodape">
           {!novo ? (
             <button type="button" className="em-btn perigo" onClick={() => onExcluir(emitente)}>
-              <Trash2 size={15} /> Inativar fornecedor
+              <Trash2 size={15} /> Excluir fornecedor
             </button>
           ) : (
             <span />
           )}
           <div className="em-acoes-rodape">
             <button type="button" className="em-btn neutro" onClick={onClose}>Cancelar</button>
-            <button type="submit" form="form-emitente" className="em-btn primario">
-              <Save size={15} /> Salvar fornecedor
+            <button type="submit" form="form-emitente" className="em-btn primario" disabled={salvando}>
+              <Save size={15} /> {salvando ? 'Salvando…' : 'Salvar fornecedor'}
             </button>
           </div>
         </footer>

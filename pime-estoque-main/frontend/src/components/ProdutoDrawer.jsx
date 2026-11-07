@@ -1,12 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Package, Save, Trash2, X } from 'lucide-react';
-import { armazens, categorias, unidades } from '../data/produtos';
+import { brl, inteiro } from '../utils/formatos';
 
-const vazio = {
-  sku: '', ean: '', nome: '', marca: '', unidade: 'UN', categoria: 'controladores',
-  custo: '', margemAlvo: '', venda: '', ncm: '', icms: '18', tributos: '9.25%',
-  minimo: '20', reposicao: '', maximo: '', cd: 'cd01', local: '', peso: '',
-};
+const vazio = { key_produto: '', nom_produto: '', vlr_venda: '', qtd_min_estoque: '0', idc_status: 'ATIVO' };
 
 function Campo({ rotulo, obrigatorio, span = 1, children }) {
   return (
@@ -30,15 +26,21 @@ function Secao({ titulo, colunas = 2, children }) {
 
 export default function ProdutoDrawer({ aberto, produto, onClose, onSalvar, onExcluir, onErro }) {
   const [form, setForm] = useState(vazio);
+  const [salvando, setSalvando] = useState(false);
   const novo = !produto;
 
- 
   useEffect(() => {
     if (!aberto) return;
     setForm(
       produto
-        ? { ...vazio, ...produto, custo: String(produto.custo), venda: String(produto.venda), minimo: String(produto.minimo), maximo: String(produto.maximo ?? '') }
-        : { ...vazio, sku: `SKU-${Math.floor(1000 + Math.random() * 9000)}-N` },
+        ? {
+            key_produto: produto.key_produto,
+            nom_produto: produto.nom_produto,
+            vlr_venda: String(produto.vlr_venda),
+            qtd_min_estoque: String(produto.qtd_min_estoque),
+            idc_status: produto.idc_status,
+          }
+        : vazio,
     );
   }, [aberto, produto]);
 
@@ -51,19 +53,21 @@ export default function ProdutoDrawer({ aberto, produto, onClose, onSalvar, onEx
 
   const mudar = (campo) => (e) => setForm((f) => ({ ...f, [campo]: e.target.value }));
 
-  const salvar = () => {
-    if (!form.sku.trim() || !form.nome.trim() || form.custo === '' || form.venda === '' || !form.ncm.trim() || form.minimo === '') {
+  async function salvar() {
+    if (!form.key_produto.trim() || !form.nom_produto.trim() || form.vlr_venda === '' || form.qtd_min_estoque === '') {
       onErro('Preencha os campos obrigatórios (*)');
       return;
     }
-    onSalvar({
-      ...form,
-      custo: Number(form.custo),
-      venda: Number(form.venda),
-      minimo: Number(form.minimo),
-      maximo: form.maximo === '' ? null : Number(form.maximo),
+    setSalvando(true);
+    await onSalvar({
+      key_produto: form.key_produto.trim(),
+      nom_produto: form.nom_produto.trim(),
+      vlr_venda: Number(form.vlr_venda),
+      qtd_min_estoque: Number(form.qtd_min_estoque),
+      idc_status: form.idc_status,
     });
-  };
+    setSalvando(false);
+  }
 
   return (
     <>
@@ -80,12 +84,12 @@ export default function ProdutoDrawer({ aberto, produto, onClose, onSalvar, onEx
           <div className="drawer-titulo">
             <div>
               <strong>{novo ? 'Cadastro de Novo Produto' : 'Editar Produto'}</strong>
-              {!novo && <span className="drawer-codigo">#{produto.sku}</span>}
+              {!novo && <span className="drawer-codigo">#{produto.key_produto}</span>}
             </div>
             <small>
               {novo
-                ? 'Informe os dados tributários, precificação e localização para criar o SKU'
-                : `Saldo físico atual: ${produto.saldo} unidades registradas em armazém`}
+                ? 'O saldo e o custo médio começam zerados e são atualizados pelas entradas de estoque'
+                : `Saldo atual: ${inteiro(produto.qtd_estoque)} un • Custo médio: ${brl(produto.vlr_custo_medio)}`}
             </small>
           </div>
           <button type="button" className="drawer-fechar" onClick={onClose} aria-label="Fechar">
@@ -94,57 +98,27 @@ export default function ProdutoDrawer({ aberto, produto, onClose, onSalvar, onEx
         </header>
 
         <div className="drawer-corpo">
-          <Secao titulo="01. Identificação geral">
+          <Secao titulo="01. Identificação">
             <Campo rotulo="Código SKU" obrigatorio>
-              <input className="mono" type="text" value={form.sku} onChange={mudar('sku')} placeholder="Ex: SKU-9040-X" disabled={!novo} />
+              <input className="mono" type="text" maxLength={50} value={form.key_produto} onChange={mudar('key_produto')} placeholder="Ex: SKU-9040-X" />
             </Campo>
-            <Campo rotulo="Código de barras (EAN-13 / GTIN)">
-              <input className="mono" type="text" value={form.ean} onChange={mudar('ean')} placeholder="789895012..." />
-            </Campo>
-            <Campo rotulo="Nome / descrição comercial do item" obrigatorio span={2}>
-              <input type="text" value={form.nome} onChange={mudar('nome')} placeholder="Ex: Inversor Solar Trifásico 15kW 380V Industrial" />
-            </Campo>
-            <Campo rotulo="Marca / fabricante">
-              <input type="text" value={form.marca} onChange={mudar('marca')} placeholder="Ex: Nexus Solares Inc." />
-            </Campo>
-            <Campo rotulo="Unidade de medida">
-              <select value={form.unidade} onChange={mudar('unidade')}>
-                {unidades.map(([v, r]) => <option key={v} value={v}>{r}</option>)}
+            <Campo rotulo="Status">
+              <select value={form.idc_status} onChange={mudar('idc_status')}>
+                <option value="ATIVO">Ativo</option>
+                <option value="INATIVO">Inativo</option>
               </select>
             </Campo>
-            <Campo rotulo="Categoria" span={2}>
-              <select value={form.categoria} onChange={mudar('categoria')}>
-                {categorias.map((c) => <option key={c.valor} value={c.valor}>{c.rotulo}</option>)}
-              </select>
+            <Campo rotulo="Nome / descrição do produto" obrigatorio span={2}>
+              <input type="text" maxLength={150} value={form.nom_produto} onChange={mudar('nom_produto')} placeholder="Ex: Controlador de Carga MPPT 60A" />
             </Campo>
           </Secao>
 
-          <Secao titulo="02. Custos, precificação & tributos" colunas={3}>
-            <Campo rotulo="Preço de custo (R$)" obrigatorio>
-              <input className="mono" type="number" step="0.01" value={form.custo} onChange={mudar('custo')} placeholder="0.00" />
+          <Secao titulo="02. Preço & reposição">
+            <Campo rotulo="Preço de venda (R$)" obrigatorio>
+              <input className="mono" type="number" min="0" step="0.01" value={form.vlr_venda} onChange={mudar('vlr_venda')} placeholder="0.00" />
             </Campo>
-            <Campo rotulo="Margem alvo (%)">
-              <input className="mono" type="number" step="0.1" value={form.margemAlvo} onChange={mudar('margemAlvo')} placeholder="40.0" />
-            </Campo>
-            <Campo rotulo="Preço venda final (R$)" obrigatorio>
-              <input className="mono" type="number" step="0.01" value={form.venda} onChange={mudar('venda')} placeholder="0.00" />
-            </Campo>
-
-
-
-          </Secao>
-
-          <Secao titulo="03. Parâmetros logísticos & armazenamento" colunas={3}>
             <Campo rotulo="Estoque mínimo" obrigatorio>
-              <input className="mono" type="number" value={form.minimo} onChange={mudar('minimo')} placeholder="50" />
-            </Campo>
-
-            <Campo rotulo="Estoque máximo">
-              <input className="mono" type="number" value={form.maximo} onChange={mudar('maximo')} placeholder="300" />
-            </Campo>
-
-            <Campo rotulo="Peso líquido (kg)">
-              <input className="mono" type="number" step="0.01" value={form.peso} onChange={mudar('peso')} placeholder="4.20" />
+              <input className="mono" type="number" min="0" step="1" value={form.qtd_min_estoque} onChange={mudar('qtd_min_estoque')} placeholder="0" />
             </Campo>
           </Secao>
         </div>
@@ -152,13 +126,13 @@ export default function ProdutoDrawer({ aberto, produto, onClose, onSalvar, onEx
         <footer className="drawer-rodape">
           {novo ? <span /> : (
             <button type="button" className="btn-perigo" onClick={() => onExcluir(produto)}>
-              <Trash2 size={15} /> Inativar SKU
+              <Trash2 size={15} /> Excluir produto
             </button>
           )}
           <div>
             <button type="button" className="btn-neutro" onClick={onClose}>Descartar</button>
-            <button type="button" className="primary-button" onClick={salvar}>
-              <Save size={15} /> Salvar SKU
+            <button type="button" className="primary-button" onClick={salvar} disabled={salvando}>
+              <Save size={15} /> {salvando ? 'Salvando…' : 'Salvar produto'}
             </button>
           </div>
         </footer>

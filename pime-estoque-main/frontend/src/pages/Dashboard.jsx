@@ -1,28 +1,60 @@
+import { useCallback, useEffect, useState } from 'react';
 import {
-  Activity,
-  ArrowDownToLine,
-  ArrowUpFromLine,
-  Boxes,
-  Package,
-  ShoppingCart,
-  TrendingUp,
+  Activity, ArrowDownToLine, ArrowUpFromLine, Boxes, Package, ShoppingCart,
+  TrendingUp, TriangleAlert, Wallet, CircleDollarSign,
 } from 'lucide-react';
+import { useApi } from '../hooks/useApi';
+import { brl, dataBR, inteiro } from '../utils/formatos';
 
-const resumo = [
-  { titulo: 'Total de produtos', valor: '1.284', detalhe: '+8,2% este mês', icone: Boxes, cor: 'green' },
-  { titulo: 'Entradas do mês', valor: '356', detalhe: 'Últimos 30 dias', icone: ArrowDownToLine, cor: 'cyan' },
-  { titulo: 'Saídas do mês', valor: '219', detalhe: 'Últimos 30 dias', icone: ArrowUpFromLine, cor: 'green' },
-  { titulo: 'Pedidos pendentes', valor: '18', detalhe: 'Precisam de atenção', icone: ShoppingCart, cor: 'cyan' },
-];
+const hoje = new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
 
-const movimentacoes = [
-  { nome: 'Notebook Lenovo ThinkPad', tipo: 'Entrada', codigo: 'PRD-1024', data: '17/10/2026', quantidade: '+24', status: 'Concluído' },
-  { nome: 'Mouse sem fio Logitech', tipo: 'Saída', codigo: 'PRD-0871', data: '17/10/2026', quantidade: '-12', status: 'Concluído' },
-  { nome: 'Monitor Dell 24 polegadas', tipo: 'Entrada', codigo: 'PRD-0442', data: '16/10/2026', quantidade: '+8', status: 'Em andamento' },
-  { nome: 'Teclado mecânico', tipo: 'Saída', codigo: 'PRD-0318', data: '16/10/2026', quantidade: '-6', status: 'Concluído' },
-];
+function Cards({ lista, rotulo }) {
+  return (
+    <section className="stats-grid" aria-label={rotulo}>
+      {lista.map(({ titulo, valor, detalhe, icone: Icone, cor }) => (
+        <article className="stat-card" key={titulo}>
+          <div className="stat-card-top">
+            <span>{titulo}</span>
+            <span className={`stat-icon ${cor}`}><Icone size={19} /></span>
+          </div>
+          <strong>{valor}</strong>
+          <p><TrendingUp size={14} /> {detalhe}</p>
+        </article>
+      ))}
+    </section>
+  );
+}
 
 export default function Dashboard() {
+  const chamar = useApi();
+  const [dados, setDados] = useState(null);
+  const [erro, setErro] = useState('');
+
+  const carregar = useCallback(async () => {
+    setErro('');
+    try {
+      setDados(await chamar('/dashboard'));
+    } catch (e) {
+      setErro(e.message);
+    }
+  }, [chamar]);
+
+  useEffect(() => { carregar(); }, [carregar]);
+
+  const ind = dados?.indicadores;
+  const resumo = ind && [
+    { titulo: 'Produtos ativos', valor: inteiro(ind.produtos_ativos), detalhe: `${inteiro(ind.estoque_baixo)} com estoque baixo`, icone: Boxes, cor: 'green' },
+    { titulo: 'Entradas do mês', valor: inteiro(ind.entradas_mes), detalhe: 'Desde o dia 1º do mês', icone: ArrowDownToLine, cor: 'cyan' },
+    { titulo: 'Saídas do mês', valor: inteiro(ind.qtd_saidas_mes), detalhe: `${inteiro(ind.vendas_mes)} venda(s) finalizada(s)`, icone: ArrowUpFromLine, cor: 'green' },
+    { titulo: 'Pedidos pendentes', valor: inteiro(ind.pedidos_pendentes), detalhe: 'Em preparação', icone: ShoppingCart, cor: 'cyan' },
+  ];
+  const financeiro = ind && [
+    { titulo: 'Valor em estoque (custo)', valor: brl(ind.vlr_estoque), detalhe: 'Saldo × custo médio dos ativos', icone: Wallet, cor: 'cyan' },
+    { titulo: 'Receita do mês', valor: brl(ind.vlr_receita_mes), detalhe: 'Pedidos finalizados', icone: CircleDollarSign, cor: 'green' },
+    { titulo: 'Lucro bruto do mês', valor: brl(ind.vlr_lucro_mes), detalhe: 'Receita − custo médio', icone: TrendingUp, cor: 'green' },
+    { titulo: 'Estoque baixo', valor: inteiro(ind.estoque_baixo), detalhe: 'Saldo ≤ estoque mínimo', icone: TriangleAlert, cor: 'cyan' },
+  ];
+
   return (
     <div className="dashboard">
       <div className="dashboard-heading">
@@ -31,76 +63,108 @@ export default function Dashboard() {
           <h1>Dashboard</h1>
           <p>Acompanhe os indicadores e a movimentação do seu estoque.</p>
         </div>
-        <div className="dashboard-date">17 de outubro de 2026</div>
+        <div className="dashboard-date">{hoje}</div>
       </div>
 
-      <section className="stats-grid" aria-label="Resumo do estoque">
-        {resumo.map(({ titulo, valor, detalhe, icone: Icone, cor }) => (
-          <article className="stat-card" key={titulo}>
-            <div className="stat-card-top">
-              <span>{titulo}</span>
-              <span className={`stat-icon ${cor}`}><Icone size={19} /></span>
+      {erro && (
+        <div className="aviso-erro">
+          <span>Não foi possível carregar o dashboard: {erro}</span>
+          <button type="button" onClick={carregar}>Tentar novamente</button>
+        </div>
+      )}
+
+      {!dados && !erro && <p className="carregando">Carregando indicadores…</p>}
+
+      {dados && (
+        <>
+          <Cards lista={resumo} rotulo="Resumo do estoque" />
+          <Cards lista={financeiro} rotulo="Resumo financeiro do mês" />
+
+          <section className="dashboard-panel">
+            <div className="panel-heading">
+              <div>
+                <h2>Movimentações recentes</h2>
+                <p>Últimas entradas de estoque e vendas finalizadas</p>
+              </div>
             </div>
-            <strong>{valor}</strong>
-            <p><TrendingUp size={14} /> {detalhe}</p>
-          </article>
-        ))}
-      </section>
 
-      <section className="dashboard-panel">
-        <div className="panel-heading">
-          <div>
-            <h2>Movimentações recentes</h2>
-            <p>Últimas entradas e saídas registradas no sistema</p>
-          </div>
-          <button type="button" className="secondary-button">Ver movimentações</button>
-        </div>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Parceiro</th>
+                    <th>Tipo</th>
+                    <th>Data</th>
+                    <th>Quantidade</th>
+                    <th>Valor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dados.movimentacoes_recentes.map((m) => {
+                    const entrada = m.idc_tipo === 'ENTRADA';
+                    return (
+                      <tr key={`${m.idc_tipo}-${m.id}`}>
+                        <td>
+                          <div className="product-cell">
+                            <span className="product-icon"><Package size={17} /></span>
+                            <span>
+                              <strong>{m.nom_parceiro}</strong>
+                              <small>{entrada ? 'Entrada' : 'Pedido'} #{m.id}</small>
+                            </span>
+                          </div>
+                        </td>
+                        <td>
+                          <span className={`movement-type ${entrada ? 'entrada' : 'saida'}`}>
+                            {entrada ? 'Entrada' : 'Saída'}
+                          </span>
+                        </td>
+                        <td>{dataBR(m.dat_movimento)}</td>
+                        <td className={entrada ? 'quantity-positive' : 'quantity-negative'}>
+                          {entrada ? '+' : '-'}{inteiro(m.qtd_unidades)} un.
+                        </td>
+                        <td>{brl(m.vlr_total)}</td>
+                      </tr>
+                    );
+                  })}
+                  {dados.movimentacoes_recentes.length === 0 && (
+                    <tr><td colSpan={5} className="vazio">Nenhuma movimentação registrada ainda.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
 
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Produto</th>
-                <th>Tipo</th>
-                <th>Data</th>
-                <th>Quantidade</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {movimentacoes.map((item) => (
-                <tr key={item.codigo}>
-                  <td>
-                    <div className="product-cell">
-                      <span className="product-icon"><Package size={17} /></span>
-                      <span>
-                        <strong>{item.nome}</strong>
-                        <small>{item.codigo}</small>
-                      </span>
-                    </div>
-                  </td>
-                  <td>
-                    <span className={`movement-type ${item.tipo === 'Entrada' ? 'entrada' : 'saida'}`}>
-                      {item.tipo}
-                    </span>
-                  </td>
-                  <td>{item.data}</td>
-                  <td className={item.quantidade.startsWith('+') ? 'quantity-positive' : 'quantity-negative'}>
-                    {item.quantidade} un.
-                  </td>
-                  <td>
-                    <span className={`status ${item.status === 'Concluído' ? 'complete' : 'pending'}`}>
-                      <span />{item.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+          <section className="dashboard-panel" style={{ marginTop: 24 }}>
+            <div className="panel-heading">
+              <div>
+                <h2>Produtos com estoque baixo</h2>
+                <p>Ativos com saldo igual ou abaixo do mínimo (5 mais críticos)</p>
+              </div>
+            </div>
 
-      <p className="demo-note">Dados ilustrativos para visualização da interface.</p>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>Produto</th><th>SKU</th><th>Saldo</th><th>Mínimo</th></tr>
+                </thead>
+                <tbody>
+                  {dados.produtos_estoque_baixo.map((p) => (
+                    <tr key={p.id_produto}>
+                      <td><strong>{p.nom_produto}</strong></td>
+                      <td>{p.key_produto}</td>
+                      <td className="quantity-negative">{inteiro(p.qtd_estoque)} un.</td>
+                      <td>{inteiro(p.qtd_min_estoque)} un.</td>
+                    </tr>
+                  ))}
+                  {dados.produtos_estoque_baixo.length === 0 && (
+                    <tr><td colSpan={4} className="vazio">Nenhum produto abaixo do estoque mínimo.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </>
+      )}
     </div>
   );
 }

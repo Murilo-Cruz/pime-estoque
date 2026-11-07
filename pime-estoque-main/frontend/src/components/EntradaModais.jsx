@@ -1,66 +1,51 @@
 import { useEffect } from 'react';
-import { CloudUpload, FileUp, TriangleAlert, X } from 'lucide-react';
+import { X } from 'lucide-react';
+import { brl, dataBR, horaBR, inteiro } from '../utils/formatos';
 
-function useEsc(ativo, fn) {
+export function DetalheEntradaModal({ entrada, onClose }) {
   useEffect(() => {
-    if (!ativo) return;
-    const aoTeclar = (e) => e.key === 'Escape' && fn();
+    if (!entrada) return;
+    const aoTeclar = (e) => e.key === 'Escape' && onClose();
     document.addEventListener('keydown', aoTeclar);
     return () => document.removeEventListener('keydown', aoTeclar);
-  }, [ativo, fn]);
-}
+  }, [entrada, onClose]);
 
-export function ImportarXmlModal({ aberto, onClose, onProcessar }) {
-  useEsc(aberto, onClose);
-  if (!aberto) return null;
-
-  return (
-    <div className="en-modal-fundo" onClick={onClose}>
-      <div className="en-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-        <div className="en-modal-topo">
-          <span className="en-modal-icone"><FileUp size={20} /></span>
-          <h3>Importação de NF-e (XML)</h3>
-          <button type="button" onClick={onClose} aria-label="Fechar"><X size={20} /></button>
-        </div>
-        <p>
-          Faça o upload do arquivo XML emitido pelo fornecedor. O sistema extrai automaticamente o emitente,
-          a chave de 44 dígitos e vincula os itens aos SKUs existentes.
-        </p>
-        <button type="button" className="en-dropzone" onClick={onProcessar}>
-          <CloudUpload size={40} />
-          <strong>Arraste o arquivo .XML ou clique para selecionar</strong>
-          <small>Formatos suportados: XML Schema ProcNFe v4.00 (até 15MB)</small>
-        </button>
-        <div className="en-modal-acoes en-modal-rodape">
-          <span>Status SEFAZ: <b>Online</b></span>
-          <div>
-            <button type="button" className="btn-neutro" onClick={onClose}>Cancelar</button>
-            <button type="button" className="primary-button" onClick={onProcessar}>Processar XML</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export function EstornoModal({ entrada, onCancelar, onConfirmar }) {
-  useEsc(!!entrada, onCancelar);
   if (!entrada) return null;
 
   return (
-    <div className="en-modal-fundo" onClick={onCancelar}>
-      <div className="en-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-        <div className="en-modal-erro">
-          <TriangleAlert size={26} />
-          <h3>Estornar Entrada de Estoque?</h3>
+    <div className="en-modal-fundo" onClick={onClose}>
+      <div className="en-modal" role="dialog" aria-modal="true" style={{ maxWidth: 720, width: '100%' }} onClick={(e) => e.stopPropagation()}>
+        <div className="en-modal-topo">
+          <h3>Entrada #{entrada.id_estoque_entrada}</h3>
+          <button type="button" onClick={onClose} aria-label="Fechar"><X size={20} /></button>
         </div>
+
         <p>
-          Atenção: ao estornar a entrada <strong className="mono">#{entrada.id}</strong>, as quantidades vinculadas
-          serão subtraídas imediatamente do saldo físico atual e os lotes correspondentes serão invalidados.
+          <strong>{entrada.nom_fornecedor}</strong> • {dataBR(entrada.dat_entrada)} às {horaBR(entrada.dat_entrada)}
+          {' '}• registrada por {entrada.nom_usuario}
         </p>
-        <div className="en-modal-acoes">
-          <button type="button" className="btn-neutro" onClick={onCancelar}>Cancelar</button>
-          <button type="button" className="en-btn-erro" onClick={() => onConfirmar(entrada)}>Confirmar Estorno</button>
+
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Produto</th><th className="col-num">Qtd</th><th className="col-num">Custo unit.</th><th className="col-num">Subtotal</th></tr>
+            </thead>
+            <tbody>
+              {entrada.itens.map((i) => (
+                <tr key={i.id_item_estoque_entrada}>
+                  <td><div className="celula-dupla"><span>{i.nom_produto}</span><small className="mono">{i.key_produto}</small></div></td>
+                  <td className="col-num mono">{inteiro(i.qtd_item)}</td>
+                  <td className="col-num mono">{brl(i.vlr_uni)}</td>
+                  <td className="col-num mono"><b>{brl(i.vlr_subtotal)}</b></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="en-modal-acoes en-modal-rodape">
+          <span>Total da entrada: <b>{brl(entrada.vlr_total)}</b></span>
+          <button type="button" className="btn-neutro" onClick={onClose}>Fechar</button>
         </div>
       </div>
     </div>

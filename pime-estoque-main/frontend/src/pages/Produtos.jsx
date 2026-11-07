@@ -1,84 +1,120 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  BadgeCheck, Download, FilterX, History, ListChecks, MapPin, Network, PackagePlus,
-  Pencil, Plus, ScanBarcode, Search, SlidersHorizontal, Trash2, Package,
+  Boxes, FilterX, Pencil, Plus, Power, Search, Trash2, TriangleAlert, Wallet, Warehouse, Package,
 } from 'lucide-react';
 import ProdutoDrawer from '../components/ProdutoDrawer';
 import ExcluirProdutoModal from '../components/ExcluirProdutoModal';
 import Toast from '../components/Toast';
-import {
-  armazens, brl, categorias, distribuicaoCd, kpis, margem, nivelEstoque, niveis,
-  produtosIniciais, rotuloNivel,
-} from '../data/produtos';
+import { useApi } from '../hooks/useApi';
+import { useToast } from '../hooks/useToast';
+import { brl, inteiro, margemPct } from '../utils/formatos';
 import './Clientes.css'; // reaproveita KPIs, filtros, tabela, drawer (já são classes globais)
 import './Produtos.css';
 
-const filtrosIniciais = { busca: '', categoria: '', armazem: '', nivel: '', somenteAtivos: true };
+const filtrosIniciais = { busca: '', nivel: '', somenteAtivos: true };
 
-const mapaCategoria = Object.fromEntries(categorias.map((c) => [c.valor, c]));
+const niveis = [
+  ['normal', 'Normal / Saudável'],
+  ['baixo', 'Abaixo do Mínimo'],
+  ['ruptura', 'Ruptura (Saldo Zero)'],
+];
+const rotuloNivel = { normal: 'Saudável', baixo: 'Estoque Baixo', ruptura: 'Ruptura Total' };
+
+// Mesma regra do backend: saldo <= mínimo é "estoque baixo"
+function nivelEstoque(p) {
+  if (p.qtd_estoque <= 0) return 'ruptura';
+  if (p.qtd_estoque <= p.qtd_min_estoque) return 'baixo';
+  return 'normal';
+}
 
 export default function Produtos() {
-  const [produtos, setProdutos] = useState(produtosIniciais);
+  const chamar = useApi();
+  const [produtos, setProdutos] = useState([]);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState('');
   const [filtros, setFiltros] = useState(filtrosIniciais);
-  const [selecionados, setSelecionados] = useState([]);
   const [drawerAberto, setDrawerAberto] = useState(false);
   const [produtoEditando, setProdutoEditando] = useState(null);
   const [produtoExcluindo, setProdutoExcluindo] = useState(null);
-  const [toast, setToast] = useState(null);
+  const [toast, avisar] = useToast(3500);
 
-  const avisar = (titulo, mensagem = '') => {
-    setToast({ titulo, mensagem });
-    setTimeout(() => setToast(null), 3500);
-  };
+  const carregar = useCallback(async () => {
+    setErro('');
+    try {
+      setProdutos(await chamar('/produtos'));
+    } catch (e) {
+      setErro(e.message);
+    } finally {
+      setCarregando(false);
+    }
+  }, [chamar]);
+
+  useEffect(() => { carregar(); }, [carregar]);
+
+  const kpis = useMemo(() => {
+    const ativos = produtos.filter((p) => p.idc_status === 'ATIVO');
+    const baixo = ativos.filter((p) => p.qtd_estoque <= p.qtd_min_estoque);
+    return [
+      { titulo: 'Total de produtos', valor: inteiro(produtos.length), badge: `${ativos.length} ativos`, detalhe: `${produtos.length - ativos.length} inativos`, icone: Boxes, cor: 'cyan' },
+      { titulo: 'Saldo físico global', valor: inteiro(ativos.reduce((s, p) => s + p.qtd_estoque, 0)), badge: 'unidades', detalhe: 'Somente produtos ativos', icone: Warehouse, cor: 'green' },
+      { titulo: 'Alerta / estoque baixo', valor: inteiro(baixo.length), badge: `${baixo.filter((p) => p.qtd_estoque <= 0).length} em ruptura`, detalhe: 'Saldo ≤ mínimo', icone: TriangleAlert, cor: 'red' },
+      { titulo: 'Valor em estoque (custo)', valor: brl(ativos.reduce((s, p) => s + p.qtd_estoque * p.vlr_custo_medio, 0)), badge: 'Custo médio', detalhe: 'Saldo × custo médio', icone: Wallet, cor: 'cyan' },
+    ];
+  }, [produtos]);
 
   const filtrados = useMemo(() => {
     const termo = filtros.busca.trim().toLowerCase();
-    return produtos.filter((p) => {
-      const bateBusca =
-        !termo ||
-        p.sku.toLowerCase().includes(termo) ||
-        p.ean.includes(termo) ||
-        p.nome.toLowerCase().includes(termo) ||
-        p.marca.toLowerCase().includes(termo);
-      return (
-        bateBusca &&
-        (!filtros.categoria || p.categoria === filtros.categoria) &&
-        (!filtros.armazem || p.cd === filtros.armazem) &&
-        (!filtros.nivel || nivelEstoque(p) === filtros.nivel) &&
-        (!filtros.somenteAtivos || p.ativo)
-      );
-    });
+    return produtos.filter((p) => (
+      (!termo || p.nom_produto.toLowerCase().includes(termo) || p.key_produto.toLowerCase().includes(termo)) &&
+      (!filtros.nivel || nivelEstoque(p) === filtros.nivel) &&
+      (!filtros.somenteAtivos || p.idc_status === 'ATIVO')
+    ));
   }, [produtos, filtros]);
 
   const mudar = (campo) => (e) => setFiltros((f) => ({ ...f, [campo]: e.target.value }));
-
-  const todosMarcados = filtrados.length > 0 && filtrados.every((p) => selecionados.includes(p.sku));
-  const alternar = (sku) =>
-    setSelecionados((s) => (s.includes(sku) ? s.filter((x) => x !== sku) : [...s, sku]));
-  const alternarTodos = () => setSelecionados(todosMarcados ? [] : filtrados.map((p) => p.sku));
 
   const abrirNovo = () => { setProdutoEditando(null); setDrawerAberto(true); };
   const abrirEdicao = (p) => { setProdutoEditando(p); setDrawerAberto(true); };
   const fecharDrawer = () => setDrawerAberto(false);
 
-  const salvar = (dados) => {
-    const existe = produtos.some((p) => p.sku === dados.sku);
-    setProdutos((lista) =>
-      existe
-        ? lista.map((p) => (p.sku === dados.sku ? { ...p, ...dados } : p))
-        : [...lista, { ...dados, saldo: 0, origem: '0 - Nac.', ativo: true }],
-    );
-    fecharDrawer();
-    avisar('SKU salvo', `${dados.sku} salvo com sucesso no banco de inventário.`);
-  };
+  async function salvar(dados) {
+    try {
+      const editando = Boolean(produtoEditando);
+      const salvo = await chamar(editando ? `/produtos/${produtoEditando.id_produto}` : '/produtos', {
+        metodo: editando ? 'PUT' : 'POST',
+        corpo: dados,
+      });
+      fecharDrawer();
+      await carregar();
+      avisar('Produto salvo', `${salvo.key_produto} salvo com sucesso.`);
+    } catch (e) {
+      avisar('Não foi possível salvar', e.message, true);
+    }
+  }
 
-  const confirmarExclusao = (p) => {
-    setProdutos((lista) => lista.filter((x) => x.sku !== p.sku));
-    setSelecionados((s) => s.filter((x) => x !== p.sku));
-    setProdutoExcluindo(null);
-    fecharDrawer();
-    avisar('SKU removido', `${p.sku} desativado e removido do catálogo.`);
-  };
+  async function alternarStatus(p) {
+    const novo = p.idc_status === 'ATIVO' ? 'INATIVO' : 'ATIVO';
+    try {
+      await chamar(`/produtos/${p.id_produto}/status`, { metodo: 'PATCH', corpo: { idc_status: novo } });
+      await carregar();
+      avisar(novo === 'ATIVO' ? 'Produto ativado' : 'Produto inativado', p.key_produto);
+    } catch (e) {
+      avisar('Não foi possível alterar o status', e.message, true);
+    }
+  }
+
+  async function confirmarExclusao(p) {
+    try {
+      await chamar(`/produtos/${p.id_produto}`, { metodo: 'DELETE' });
+      setProdutoExcluindo(null);
+      fecharDrawer();
+      await carregar();
+      avisar('Produto removido', `${p.key_produto} excluído do catálogo.`);
+    } catch (e) {
+      setProdutoExcluindo(null);
+      avisar('Não foi possível excluir', e.message, true);
+    }
+  }
 
   return (
     <div className="dashboard produtos-page">
@@ -86,7 +122,7 @@ export default function Produtos() {
         <div>
           <span className="eyebrow"><Package size={14} /> LOGÍSTICA &amp; CATÁLOGO</span>
           <h1>Catálogo de Produtos &amp; Inventário</h1>
-          <p>Gerenciamento unificado de SKUs, parametrização tributária NCM, custeio dinâmico, pontos críticos de ressuprimento e balanceamento multi-CD.</p>
+          <p>Cadastro de produtos, preço de venda, custo médio ponderado, saldo em estoque e ponto de ressuprimento.</p>
         </div>
 
         <div className="page-actions">
@@ -95,6 +131,13 @@ export default function Produtos() {
           </button>
         </div>
       </div>
+
+      {erro && (
+        <div className="aviso-erro">
+          <span>Não foi possível carregar os produtos: {erro}</span>
+          <button type="button" onClick={carregar}>Tentar novamente</button>
+        </div>
+      )}
 
       <section className="stats-grid" aria-label="Resumo de estoque">
         {kpis.map(({ titulo, valor, badge, detalhe, icone: Icone, cor }) => (
@@ -115,23 +158,8 @@ export default function Produtos() {
       <section className="filters-bar">
         <div className="search-field">
           <Search size={16} />
-          <input
-            type="text"
-            value={filtros.busca}
-            onChange={mudar('busca')}
-            placeholder="Filtrar por SKU, EAN-13, descrição ou fornecedor..."
-          />
+          <input type="text" value={filtros.busca} onChange={mudar('busca')} placeholder="Filtrar por SKU ou nome do produto..." />
         </div>
-
-        <select value={filtros.categoria} onChange={mudar('categoria')} aria-label="Categoria">
-          <option value="">Todas as categorias</option>
-          {categorias.map((c) => <option key={c.valor} value={c.valor}>{c.rotulo}</option>)}
-        </select>
-
-        <select value={filtros.armazem} onChange={mudar('armazem')} aria-label="Armazém">
-          <option value="">Todos os armazéns</option>
-          {armazens.map((a) => <option key={a.valor} value={a.valor}>{a.rotulo}</option>)}
-        </select>
 
         <select value={filtros.nivel} onChange={mudar('nivel')} aria-label="Nível de estoque">
           <option value="">Nível de estoque (geral)</option>
@@ -147,39 +175,22 @@ export default function Produtos() {
           Somente ativos
         </label>
 
-        <button type="button" className="secondary-button" onClick={() => { setFiltros(filtrosIniciais); avisar('Filtros redefinidos'); }}>
+        <button type="button" className="secondary-button" onClick={() => setFiltros(filtrosIniciais)}>
           <FilterX size={14} /> Limpar
         </button>
       </section>
-
-      {selecionados.length > 0 && (
-        <div className="bulk-bar">
-          <span><ListChecks size={18} /> <strong>{selecionados.length}</strong> produtos selecionados</span>
-          <div>
-            <button type="button" className="btn-neutro">Transferir CD</button>
-            <button type="button" className="btn-neutro">Reajustar Margem</button>
-            <button type="button" className="btn-perigo">Inativar Selecionados</button>
-          </div>
-        </div>
-      )}
 
       <section className="dashboard-panel">
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th className="col-check">
-                  <input type="checkbox" checked={todosMarcados} onChange={alternarTodos} aria-label="Selecionar todos" />
-                </th>
-                <th>SKU &amp; Identificador</th>
+                <th>SKU</th>
                 <th>Descrição do item</th>
-                <th>Categoria</th>
-                <th>NCM / Origem</th>
-                <th className="col-num">Custo unit.</th>
+                <th className="col-num">Custo médio</th>
                 <th className="col-num">Preço venda</th>
                 <th>Margem</th>
                 <th className="col-saldo">Saldo vs mínimo</th>
-                <th>Localização</th>
                 <th>Status</th>
                 <th>Ações</th>
               </tr>
@@ -187,52 +198,42 @@ export default function Produtos() {
             <tbody>
               {filtrados.map((p) => {
                 const nivel = nivelEstoque(p);
-                const Icone = mapaCategoria[p.categoria]?.icone ?? Package;
-                const pct = p.minimo > 0 ? Math.min(100, (p.saldo / p.minimo) * 100) : 100;
+                const inativo = p.idc_status === 'INATIVO';
+                const pctBarra = p.qtd_min_estoque > 0 ? Math.min(100, (p.qtd_estoque / p.qtd_min_estoque) * 100) : 100;
                 return (
-                  <tr key={p.sku} className={nivel === 'ruptura' ? 'linha-bloqueada' : ''}>
-                    <td className="col-check">
-                      <input type="checkbox" checked={selecionados.includes(p.sku)} onChange={() => alternar(p.sku)} aria-label={`Selecionar ${p.sku}`} />
-                    </td>
+                  <tr key={p.id_produto} className={nivel === 'ruptura' && !inativo ? 'linha-bloqueada' : ''}>
                     <td>
                       <div className="product-cell">
-                        <span className="product-icon"><Icone size={18} /></span>
+                        <span className="product-icon"><Package size={18} /></span>
                         <span>
-                          <strong className={`codigo ${nivel === 'ruptura' ? 'erro' : ''}`}>{p.sku}</strong>
-                          <small className="mono">{p.ean}</small>
+                          <strong className={`codigo ${nivel === 'ruptura' ? 'erro' : ''}`}>{p.key_produto}</strong>
                         </span>
                       </div>
                     </td>
+                    <td>{p.nom_produto}</td>
+                    <td className="col-num mono">{brl(p.vlr_custo_medio)}</td>
+                    <td className="col-num mono forte">{brl(p.vlr_venda)}</td>
                     <td>
-                      <div className="celula-dupla">
-                        <span>{p.nome}</span>
-                        <small>{p.marca} • {p.unidade}</small>
-                      </div>
+                      <span className="margem">
+                        {p.vlr_custo_medio > 0 ? `${margemPct(p.vlr_venda, p.vlr_venda - p.vlr_custo_medio).toFixed(1)}%` : '—'}
+                      </span>
                     </td>
-                    <td><span className="tag">{mapaCategoria[p.categoria]?.rotulo}</span></td>
-                    <td>
-                      <div className="celula-dupla">
-                        <span className="mono">{p.ncm}</span>
-                        <small>{p.origem}</small>
-                      </div>
-                    </td>
-                    <td className="col-num mono">{brl(p.custo)}</td>
-                    <td className="col-num mono forte">{brl(p.venda)}</td>
-                    <td><span className="margem">{margem(p).toFixed(1)}%</span></td>
                     <td className="col-saldo">
                       <div className="saldo-linha">
-                        <b className={`mono ${nivel}`}>{p.saldo.toLocaleString('pt-BR')} {p.unidade.toLowerCase()}</b>
-                        <span className="mono">Mín: {p.minimo.toLocaleString('pt-BR')}</span>
+                        <b className={`mono ${nivel}`}>{inteiro(p.qtd_estoque)} un</b>
+                        <span className="mono">Mín: {inteiro(p.qtd_min_estoque)}</span>
                       </div>
-                      <div className="barra"><div className={nivel} style={{ width: `${pct}%` }} /></div>
+                      <div className="barra"><div className={nivel} style={{ width: `${pctBarra}%` }} /></div>
                     </td>
-                    <td><span className="local mono"><MapPin size={14} /> {p.local}</span></td>
-                    <td><span className={`pill ${nivel}`}><span />{rotuloNivel[nivel]}</span></td>
+                    <td>
+                      {inativo
+                        ? <span className="pill bloqueado"><span />Inativo</span>
+                        : <span className={`pill ${nivel}`}><span />{rotuloNivel[nivel]}</span>}
+                    </td>
                     <td>
                       <div className="acoes">
-                        <button type="button" title="Editar SKU" onClick={() => abrirEdicao(p)}><Pencil size={15} /></button>
-                        <button type="button" title="Ajuste de saldo físico"><BadgeCheck size={15} /></button>
-                        <button type="button" title="Histórico de movimentações"><History size={15} /></button>
+                        <button type="button" title="Editar produto" onClick={() => abrirEdicao(p)}><Pencil size={15} /></button>
+                        <button type="button" title={inativo ? 'Ativar produto' : 'Inativar produto'} onClick={() => alternarStatus(p)}><Power size={15} /></button>
                         <button type="button" className="perigo" title="Excluir produto" onClick={() => setProdutoExcluindo(p)}><Trash2 size={15} /></button>
                       </div>
                     </td>
@@ -240,27 +241,22 @@ export default function Produtos() {
                 );
               })}
 
-              {filtrados.length === 0 && (
-                <tr><td colSpan={12} className="vazio">Nenhum produto encontrado com esses filtros.</td></tr>
+              {carregando && <tr><td colSpan={8} className="vazio">Carregando produtos…</td></tr>}
+              {!carregando && filtrados.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="vazio">
+                    {produtos.length === 0 ? 'Nenhum produto cadastrado ainda. Clique em "Novo Produto".' : 'Nenhum produto encontrado com esses filtros.'}
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>
         </div>
 
         <div className="table-footer">
-          <span>Exibindo <strong>{filtrados.length}</strong> de <strong>14.250</strong> SKUs</span>
+          <span>Exibindo <strong>{filtrados.length}</strong> de <strong>{produtos.length}</strong> produtos</span>
         </div>
       </section>
-
-      <section className="insights-grid">
-
-
-       
-
-      
-      </section>
-
-      <p className="demo-note">Dados ilustrativos para visualização da interface.</p>
 
       <ProdutoDrawer
         aberto={drawerAberto}
@@ -268,7 +264,7 @@ export default function Produtos() {
         onClose={fecharDrawer}
         onSalvar={salvar}
         onExcluir={setProdutoExcluindo}
-        onErro={(msg) => avisar('Atenção', msg)}
+        onErro={(msg) => avisar('Atenção', msg, true)}
       />
 
       <ExcluirProdutoModal
