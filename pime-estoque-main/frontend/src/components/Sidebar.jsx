@@ -18,7 +18,7 @@ const itens = [
   { nome: 'Dashboard', icone: LayoutDashboard, rota: '/' },
   { nome: 'Produtos', icone: Package, rota: '/produtos' },
   { nome: 'Clientes', icone: UserRound, rota: '/clientes' },
-  { nome: 'Emitentes', icone: Users, rota: '/emitentes' },
+  { nome: 'Fornecedores', icone: Users, rota: '/fornecedores' },
   { nome: 'Entradas', icone: PackagePlus, rota: '/entradas' },
   { nome: 'Pedidos', icone: ShoppingCart, rota: '/pedidos' },
   { nome: 'Financeiro', icone: Wallet, rota: '/financeiro' },
