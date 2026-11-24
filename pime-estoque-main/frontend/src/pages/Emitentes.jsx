@@ -109,7 +109,7 @@ function TabelaFornecedores({ lista, resumos, onEditar }) {
   );
 }
 
-export default function Emitentes() {
+export default function Fornecedores() {
   const chamar = useApi();
   const navegar = useNavigate();
   const [fornecedores, setFornecedores] = useState([]);
